@@ -13,21 +13,20 @@ import 'items.dart' as items;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final fbApp = await Firebase.initializeApp();
-  final databaseRef = FirebaseStorageWeb().webStorage;
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final Future<FirebaseApp> _initialization = Firebase.initializeApp();
+  final Future<FirebaseApp> _fbFApp = Firebase.initializeApp();
+//  final dbRef = FirebaseStorageWeb().webStorage;
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-      future: _initialization,
+      future: _fbFApp,
       builder: (context, snapshot) {
-       if (snapshot.hasError) {
-          return Container(); // !!! somethingWentWrong();
+        if (snapshot.hasError) {
+          // !!! do something
         }
         // Once complete, show your application
         if (snapshot.connectionState == ConnectionState.done) {
@@ -42,7 +41,7 @@ class MyApp extends StatelessWidget {
           );
         }
         // Otherwise, show something whilst waiting for initialization to complete
-        return Container(); // !!! stillLoading();
+        return CircularProgressIndicator(); // !!! this may not work (still loading)
       },
     );
   }
@@ -60,14 +59,14 @@ class _IssueListPageState extends State<IssueListPage> {
   List<TextEditingController> listEditors = [];
 
   _saveItems() {
-  String text = 'Hello World!';
-  List<int> encoded = utf8.encode(text);
-  Uint8List data = Uint8List.fromList(encoded);
-  print(data);
-  
-    // FirebaseStorageWeb storage = FirebaseStorageWeb();
-    // var x = storage.ref('items.json');
-    // x.putData(data);
+    String text = 'Hello World!';
+    List<int> encoded = utf8.encode(text);
+    Uint8List data = Uint8List.fromList(encoded);
+    print(data);
+    
+    FirebaseStorageWeb storage = FirebaseStorageWeb();
+    var x = storage.ref('items.json');
+    x.putData(data);
   }
 
   _createNewItem() {

@@ -42,6 +42,7 @@
   </script>
   
   <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/7.20.0/firebase-auth.js"></script>
   <!-- Firebase Configuration -->
   <script>
   var firebaseConfig = {
@@ -52,7 +53,8 @@
       storageBucket: "schedulex-f1d2b.appspot.com",
       messagingSenderId: "230054040010",
       appId: "1:230054040010:web:22560a3c424df8b1a5ff33"
-    };   
+    };
+    firebase.initializeApp(firebaseConfig);
   </script>
 
   <script src="main.dart.js" type="application/javascript"></script>
