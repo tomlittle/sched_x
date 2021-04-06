@@ -3,7 +3,6 @@ library sched_x.global;
 import 'package:flutter/material.dart';
 
 // Type definitions and global varaibles
-//enum importance { VERY, SOMEWHAT, ROUTINE }
 enum dueType { HARD, SOFT }
 
 enum importance {VERY_HIGH, HIGH, NORMAL, LOW}
@@ -43,11 +42,31 @@ class Item {
   String name;
   double duration;
   int dueDate;
-  dueType deadlineType;
+  // dueType deadlineType;
   importance priority;
-  int earliestStart;
-  bool indivisible;
-  List<Session> sessions;
+  // int earliestStart;
+  // bool indivisible;
+  // List<Session> sessions;
+
+  Item({this.name, this.duration, this.dueDate, this.priority});
+
+  Item.fromJson(Map<String, dynamic> json)
+      : name = json['name'] as String,
+        duration = json['duration'] as double,
+        dueDate = json['dueDate'] as int,
+        priority = importance.values[json['priority']];
+
+  Map<String, dynamic> toJson() =>
+    {
+      'name': name,
+      'duration': duration,
+      'dueDate': dueDate,
+      // 'deadlineType': null,
+      'priority': priority.index,
+      // 'earliestStart': null,
+      // 'indivisible': null,
+      // 'sessions': null,
+    };
 }
 
 List<Item> xItems = [];

@@ -1,11 +1,12 @@
 // import 'dart:html';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:sched_x/editItem.dart';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_storage_web/firebase_storage_web.dart';
+import 'package:firebase_core/firebase_core.dart' as fb;
+import 'package:firebase_storage/firebase_storage.dart' as fb_store;
 import 'dart:convert' show utf8;
 import 'dart:typed_data' show Uint8List;
 
@@ -17,8 +18,7 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  final Future<FirebaseApp> _fbFApp = Firebase.initializeApp();
-//  final dbRef = FirebaseStorageWeb().webStorage;
+  final Future<fb.FirebaseApp> _fbFApp = fb.Firebase.initializeApp();
 
   @override
   Widget build(BuildContext context) {
@@ -58,24 +58,43 @@ class _IssueListPageState extends State<IssueListPage> {
   int _counter = 0;
   List<TextEditingController> listEditors = [];
 
+  _loadItems() {
+    fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
+    fb_store.Reference fbStorageRef = fbStorage.ref('test/test.003');
+    try {
+      fbStorageRef.getData(1000000).then((data) {
+        String dataAsString = utf8.decode(data);
+        Iterable i = json.decode(dataAsString);
+        items.xItems = List<items.Item>.from(i.map((dataAsString)=> items.Item.fromJson(dataAsString)));
+        print (items.xItems.toString());
+        setState(() {});
+      });
+    } on fb.FirebaseException catch (e) {
+        print(e.toString());
+    }
+  }
+
   _saveItems() {
-    String text = 'Hello World!';
+    String text = json.encode(items.xItems);
     List<int> encoded = utf8.encode(text);
     Uint8List data = Uint8List.fromList(encoded);
-    print(data);
     
-    FirebaseStorageWeb storage = FirebaseStorageWeb();
-    var x = storage.ref('items.json');
-    x.putData(data);
+    fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
+    fb_store.Reference fbStorageRef = fbStorage.ref('test/test.003');
+    try {
+      fbStorageRef.putData(data);
+    } on fb.FirebaseException catch (e) {
+        print(e.toString());
+    }
   }
 
   _createNewItem() {
     _counter++;
-    var i = items.Item();
+    items.Item i = items.Item();
     i.name = "Item $_counter";
-    i.priority = items.importance.NORMAL;
     i.duration = _counter as double;
-    i.dueDate = (DateTime.now().add(const Duration(days: 2))).millisecondsSinceEpoch;
+    i.dueDate = DateTime.now().add(const Duration(days: 2)).millisecondsSinceEpoch;
+    i.priority = items.importance.NORMAL;
     items.xItems.add(i);
     setState(() {});
   }
@@ -141,7 +160,7 @@ class _IssueListPageState extends State<IssueListPage> {
           Align(
             alignment: Alignment.bottomLeft,
             child: FloatingActionButton(
-              onPressed: null,
+              onPressed: _loadItems,
               tooltip: 'Load',
               child: Icon(Icons.folder_open),
             ),
