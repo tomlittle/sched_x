@@ -4,13 +4,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:sched_x/editItem.dart';
+import 'package:sched_x/menu.dart';
 
 import 'package:firebase_core/firebase_core.dart' as fb;
 import 'package:firebase_storage/firebase_storage.dart' as fb_store;
 import 'dart:convert' show utf8;
 import 'dart:typed_data' show Uint8List;
 
+import 'package:sched_x/globals.dart';
 import 'items.dart' as items;
+
+const String appTitle = 'Schedule X';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,12 +35,12 @@ class MyApp extends StatelessWidget {
         // Once complete, show your application
         if (snapshot.connectionState == ConnectionState.done) {
           return MaterialApp(
-            title: 'Schedule X',
+            title: appTitle,
             theme: ThemeData(
-              primarySwatch: Colors.grey,
+              primarySwatch: Colors.lightBlue,
             ),
             routes: {
-              '/': (context) => IssueListPage(title: 'Current Items'),
+              '/': (context) => IssueListPage(title: 'Schedule X'),
             },
           );
         }
@@ -66,7 +70,6 @@ class _IssueListPageState extends State<IssueListPage> {
         String dataAsString = utf8.decode(data);
         Iterable i = json.decode(dataAsString);
         items.xItems = List<items.Item>.from(i.map((dataAsString)=> items.Item.fromJson(dataAsString)));
-        print (items.xItems.toString());
         setState(() {});
       });
     } on fb.FirebaseException catch (e) {
@@ -91,9 +94,11 @@ class _IssueListPageState extends State<IssueListPage> {
   _createNewItem() {
     _counter++;
     items.Item i = items.Item();
+    i.id = DateTime.now().millisecondsSinceEpoch.toString()+'-$_counter';
     i.name = "Item $_counter";
-    i.duration = _counter as double;
-    i.dueDate = DateTime.now().add(const Duration(days: 2)).millisecondsSinceEpoch;
+    i.duration = _counter * ONE_HOUR;
+    DateTime _d = DateTime.now();
+    i.dueDate = DateTime(_d.year,_d.month,_d.day,17,0,0).add(const Duration(days: 2)).millisecondsSinceEpoch;
     i.priority = items.importance.NORMAL;
     items.xItems.add(i);
     setState(() {});
@@ -110,16 +115,40 @@ class _IssueListPageState extends State<IssueListPage> {
       _controller.text = items.xItems[n].name;
       listEditors.add(_controller);
       // Translate epoch due date to date string
-      String _dueDate = DateFormat('dd. MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].dueDate));
+      String _dueDate = DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].dueDate));
+      // Build a subtitle string with schedlued session if it exists
+      String subTitle = 'lasts '+(items.xItems[n].duration/ONE_HOUR).toString()+'h, due on '+_dueDate;
+      if (items.xItems[n].sessions != null) {
+        subTitle += '\nscheduled for '+
+                    DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[0].startTime))+
+                    ' at '+
+                    DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[0].startTime));
+      } else {
+        subTitle += '\nNOT SCHEDULED';
+      }
       // Build list tile for this entry
       var _temp = Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 80,vertical: 8,),
+                    padding: const EdgeInsets.symmetric(horizontal: 40,vertical: 4,),
                     child: ListTile(
                       onTap: () async {await Navigator.push(context, MaterialPageRoute(builder: (__) => 
                                                                      EditItemDialog(thisItem: items.xItems[n]),
                                                                      maintainState: true, fullscreenDialog: true));
                                        setState(() {});},
-                      leading: Icon(items.importanceIcon[items.xItems[n].priority.index]),
+                      leading: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                          maxWidth: 44,
+                          maxHeight: 44,
+                        ),
+                        child: Table(  
+                          defaultVerticalAlignment: TableCellVerticalAlignment.middle,                    
+                          children: [
+                            TableRow(children: [Icon(items.importanceIcon[items.xItems[n].priority.index]),Icon(items.importanceIcon[items.xItems[n].priority.index]),]),
+                            TableRow(children: [Icon(items.importanceIcon[items.xItems[n].priority.index]),Icon(items.importanceIcon[items.xItems[n].priority.index]),]),
+                          ],
+                        ),
+                      ),
                       title: TextField(
                         onChanged: (String value) {items.xItems[n].name = _controller.text;},
                         controller: _controller,
@@ -130,51 +159,57 @@ class _IssueListPageState extends State<IssueListPage> {
                           disabledBorder: InputBorder.none,
                         ),
                       ),
-                      subtitle: Text(_dueDate),
-                      trailing: Text(items.xItems[n].duration.toString()+"h"),
+                      subtitle: Text(subTitle),
+                      trailing: Icon(Icons.more_vert),
                     )
                   );
       listWidget.add(_temp);
     }
 
+    void _select(MenuChoice choice) {
+      switch (choice.id) {
+        case 0:
+          _createNewItem();
+          break;
+        case 1:
+          _loadItems();
+          break;
+        case 2:
+          _saveItems();
+          break;
+        default:
+          break;
+      }
+    }
+
+  void _schedule() {
+    items.reschedule(false);
+    setState(() {});
+  }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(appTitle),
+          actions: <Widget>[PopupMenuButton<MenuChoice>(
+            icon: Icon(Icons.more_vert),
+            onSelected: _select,
+            itemBuilder: (BuildContext context) {
+              return popupChoices.map((MenuChoice choice) {
+                return PopupMenuItem<MenuChoice>(
+                  value: choice,
+                  child: Text(choice.title)
+                );
+              }).toList();},
+          ),
+        ],
       ),
       body: Column(
         children: listWidget,
       ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Spacer(),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: FloatingActionButton(
-              onPressed: _saveItems,
-              tooltip: 'Save',
-              child: Icon(Icons.save),
-            ),
-          ),
-          Spacer(),
-          Align(
-            alignment: Alignment.bottomLeft,
-            child: FloatingActionButton(
-              onPressed: _loadItems,
-              tooltip: 'Load',
-              child: Icon(Icons.folder_open),
-            ),
-          ),
-          Spacer(),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: FloatingActionButton(
-              onPressed: _createNewItem,
-              tooltip: 'New',
-              child: Icon(Icons.add),
-            ),
-          ),
-        ]), 
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Compute schedule',
+        child: Icon(Icons.quickreply, color: Colors.white),
+        onPressed: _schedule),
     );
   }
 

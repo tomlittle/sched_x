@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_spinbox/material.dart'; 
 
+import 'package:sched_x/globals.dart';
 import 'items.dart' as items;
 
 class EditItemDialog extends StatefulWidget {
@@ -31,6 +32,7 @@ class _EditItemDialogState extends State<EditItemDialog> {
       context: context,
       builder: (BuildContext context) {
                 return AlertDialog(
+          titlePadding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 12.0),
           title: TextField(
                         onChanged: (String value) {thisItem.name = _controller.text;},
                         controller: _controller,
@@ -90,11 +92,10 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text("This item:", style: TextStyle(color: Colors.grey[800])),
         // Date picker for due date
         Container(
           alignment: Alignment.centerLeft,
-          padding: EdgeInsets.only(top:10, left: 10),
+          padding: EdgeInsets.only(left: 10.0),
           child: TextButton(
             child: Text("is due on "+DateFormat('dd. MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(thisItem.dueDate)),
                         style: TextStyle(color: Colors.grey[800])),
@@ -103,16 +104,16 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
         // Numeric field for duration
         Container(
           alignment: Alignment.centerLeft,
-          padding: EdgeInsets.only(top:10, left: 10),
+          padding: EdgeInsets.only(left: 10.0),
           child: TextButton(
-            child: Text("requires "+thisItem.duration.toString()+" hour(s) to complete",
+            child: Text("requires "+((thisItem.duration as double)/(ONE_HOUR as double)).toString()+" hour(s) to complete",
                         style: TextStyle(color: Colors.grey[800])),
           onPressed: () async {await _displayDurationCounter(context,thisItem); setState(() {});},
         )),
         // Dropdown for priority
         Container(
           alignment: Alignment.centerLeft,
-          padding: EdgeInsets.only(top:10, left: 10),
+          padding: EdgeInsets.only(left: 10.0),
           child: TextButton(
             child: Text("is of "+items.importanceText[thisItem.priority.index]+" importance",
                         style: TextStyle(color: Colors.grey[800])),
@@ -123,7 +124,7 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
   }
 
   Future<void> _displayDurationCounter (BuildContext context, items.Item thisItem) async {
-    double _spinnerValue = thisItem.duration;
+    double _spinnerValue = (thisItem.duration as double) / (ONE_HOUR as double);
     return showDialog(
       context: context,
       builder: (context) {
@@ -138,7 +139,7 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
                 step: 0.5,
                 decimals: 1,
                 value: _spinnerValue,
-                onChanged: (value) => setState((){thisItem.duration = value; _spinnerValue = value;}),
+                onChanged: (value) => setState((){thisItem.duration = (value * ONE_HOUR) as int; _spinnerValue = value;}),
               )],
           ),);
       },
