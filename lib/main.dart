@@ -3,8 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:sched_x/editItem.dart';
-import 'package:sched_x/menu.dart';
 
 import 'package:firebase_core/firebase_core.dart' as fb;
 import 'package:firebase_storage/firebase_storage.dart' as fb_store;
@@ -12,6 +10,9 @@ import 'dart:convert' show utf8;
 import 'dart:typed_data' show Uint8List;
 
 import 'package:sched_x/globals.dart';
+import 'package:sched_x/editItem.dart';
+import 'package:sched_x/simulatedCalendar.dart';
+import 'package:sched_x/googleCalendar.dart';
 import 'items.dart' as items;
 
 const String appTitle = 'Schedule X';
@@ -29,6 +30,20 @@ class MyApp extends StatelessWidget {
     return FutureBuilder(
       future: _fbFApp,
       builder: (context, snapshot) {
+        // Get configuration data
+        new XConfiguration();
+        // Open calendar
+        switch (XConfiguration.calendarType) {
+          case "google":
+            new GoogleCalendar();
+            break;
+          case "simulated":
+            new SimCalendar();
+            break;
+          default:
+            new SimCalendar();
+            break;
+        }
         if (snapshot.hasError) {
           // !!! do something
         }
@@ -59,50 +74,9 @@ class IssueListPage extends StatefulWidget {
 }
 
 class _IssueListPageState extends State<IssueListPage> {
+  bool isBusy = false;
   int _counter = 0;
   List<TextEditingController> listEditors = [];
-
-  _loadItems() {
-    fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
-    fb_store.Reference fbStorageRef = fbStorage.ref('test/test.003');
-    try {
-      fbStorageRef.getData(1000000).then((data) {
-        String dataAsString = utf8.decode(data);
-        Iterable i = json.decode(dataAsString);
-        items.xItems = List<items.Item>.from(i.map((dataAsString)=> items.Item.fromJson(dataAsString)));
-        setState(() {});
-      });
-    } on fb.FirebaseException catch (e) {
-        print(e.toString());
-    }
-  }
-
-  _saveItems() {
-    String text = json.encode(items.xItems);
-    List<int> encoded = utf8.encode(text);
-    Uint8List data = Uint8List.fromList(encoded);
-    
-    fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
-    fb_store.Reference fbStorageRef = fbStorage.ref('test/test.003');
-    try {
-      fbStorageRef.putData(data);
-    } on fb.FirebaseException catch (e) {
-        print(e.toString());
-    }
-  }
-
-  _createNewItem() {
-    _counter++;
-    items.Item i = items.Item();
-    i.id = DateTime.now().millisecondsSinceEpoch.toString()+'-$_counter';
-    i.name = "Item $_counter";
-    i.duration = _counter * ONE_HOUR;
-    DateTime _d = DateTime.now();
-    i.dueDate = DateTime(_d.year,_d.month,_d.day,17,0,0).add(const Duration(days: 2)).millisecondsSinceEpoch;
-    i.priority = items.importance.NORMAL;
-    items.xItems.add(i);
-    setState(() {});
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,8 +118,17 @@ class _IssueListPageState extends State<IssueListPage> {
                         child: Table(  
                           defaultVerticalAlignment: TableCellVerticalAlignment.middle,                    
                           children: [
-                            TableRow(children: [Icon(items.importanceIcon[items.xItems[n].priority.index]),Icon(items.importanceIcon[items.xItems[n].priority.index]),]),
-                            TableRow(children: [Icon(items.importanceIcon[items.xItems[n].priority.index]),Icon(items.importanceIcon[items.xItems[n].priority.index]),]),
+                            TableRow(children: [Icon(items.scheduledIcon[items.xItems[n].status.index]["icon"],
+                                                     color: items.scheduledIcon[items.xItems[n].status.index]["color"]),
+                                                Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
+                                                ]),
+                            TableRow(children: [Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
+                                                Icon(items.importanceIcon[items.xItems[n].priority.index]),
+                                                ]),
+                            TableRow(children: [Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
+                                                Icon(items.urgencyIcon[1]["icon"],
+                                                     color: items.scheduledIcon[1]["color"]),
+                                                ]),
                           ],
                         ),
                       ),
@@ -166,41 +149,90 @@ class _IssueListPageState extends State<IssueListPage> {
       listWidget.add(_temp);
     }
 
-    void _select(MenuChoice choice) {
-      switch (choice.id) {
-        case 0:
-          _createNewItem();
-          break;
-        case 1:
-          _loadItems();
-          break;
-        case 2:
-          _saveItems();
-          break;
-        default:
-          break;
-      }
+  _loadItems() async {
+    setState(() { isBusy = true; });
+    fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
+    fb_store.Reference fbStorageRef = fbStorage.ref('test/test.003');
+    try {
+      fbStorageRef.getData(1000000).then((data) {
+        String dataAsString = utf8.decode(data);
+        Iterable i = json.decode(dataAsString);
+        items.xItems = List<items.Item>.from(i.map((dataAsString)=> items.Item.fromJson(dataAsString)));
+        setState(() { isBusy = false; });
+      });
+    } on fb.FirebaseException catch (e) {
+        print(e.toString());
     }
-
-  void _schedule() {
-    items.reschedule(false);
-    setState(() {});
   }
 
-    return Scaffold(
+  _saveItems() {
+    setState(() { isBusy = true; });
+    String text = json.encode(items.xItems);
+    List<int> encoded = utf8.encode(text);
+    Uint8List data = Uint8List.fromList(encoded);
+    
+    fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
+    fb_store.Reference fbStorageRef = fbStorage.ref('test/test.003');
+    try {
+      fbStorageRef.putData(data);
+      setState(() { isBusy = false; });
+    } on fb.FirebaseException catch (e) {
+        print(e.toString());
+    }
+  }
+
+  _createNewItem() {
+    setState(() { isBusy = true; });
+    _counter++;
+    items.Item i = items.Item();
+    i.id = DateTime.now().millisecondsSinceEpoch.toString()+'-$_counter';
+    i.name = "Item $_counter";
+    i.duration = _counter * ONE_HOUR;
+    DateTime _d = DateTime.now();
+    i.dueDate = DateTime(_d.year,_d.month,_d.day,17,0,0).add(const Duration(days: 2)).millisecondsSinceEpoch;
+    i.priority = items.importance.NORMAL;
+    i.status = items.scheduled.NOTYET;
+    items.xItems.add(i);
+    setState(() { isBusy = false; });
+  }
+
+  void _schedule() {
+    setState(() { isBusy = true; });
+    items.reschedule(false).then((value) => setState(() { isBusy = false; }));
+  }
+
+  return isBusy ? 
+    AlertDialog(
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          SizedBox(
+            child: CircularProgressIndicator(),
+            height: 100.0,
+            width: 100.0,
+          )]),)
+    :
+    Scaffold(
       appBar: AppBar(
         title: Text(appTitle),
-          actions: <Widget>[PopupMenuButton<MenuChoice>(
-            icon: Icon(Icons.more_vert),
-            onSelected: _select,
-            itemBuilder: (BuildContext context) {
-              return popupChoices.map((MenuChoice choice) {
-                return PopupMenuItem<MenuChoice>(
-                  value: choice,
-                  child: Text(choice.title)
-                );
-              }).toList();},
-          ),
+        centerTitle: false,
+          actions: <Widget>[
+            IconButton(
+              icon: Icon( Icons.add_circle_outline_outlined ),
+              tooltip: "New",
+              onPressed: _createNewItem,
+            ),
+            IconButton(
+              icon: Icon( Icons.download_rounded ),
+              tooltip: "Load",
+              onPressed: _loadItems,
+            ),
+            IconButton(
+              icon: Icon( Icons.upload_rounded ),
+              tooltip: "Save",
+              onPressed: _saveItems,
+            ),
         ],
       ),
       body: Column(

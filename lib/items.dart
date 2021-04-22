@@ -3,20 +3,36 @@ library sched_x.global;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:sched_x/globals.dart';
+import 'package:sched_x/simulatedCalendar.dart';
+import 'package:sched_x/googleCalendar.dart';
 
 // Global variables
 List<Item> xItems = []; // List of items to be scheduled - this list drives EVERYTHING
 
 // Type definitions
-enum dueType { HARD, SOFT }
+enum scheduled {SCHEDULED_OK, SCHEDULED_LATE, NOT_SCHEDULED, NOTYET, ERROR}
+final List scheduledIcon = [
+  {"icon": IconData(58956, fontFamily: 'MaterialIcons'),"color": Colors.green},
+  {"icon": IconData(58956, fontFamily: 'MaterialIcons'),"color": Colors.red},
+  {"icon": IconData(58631, fontFamily: 'MaterialIcons'),"color": Colors.red},
+  {"icon": null,"color": null},
+  {"icon": IconData(59078, fontFamily: 'MaterialIcons'),"color": Colors.red},
+];
+enum urgency {HIGH, NORMAL, LOW}
+final List<String> urgencyText = ['high','normal','low'];
+final List urgencyIcon = [
+  {"icon": IconData(62099, fontFamily: 'MaterialIcons'),"color": Colors.red},
+  {"icon": IconData(62101, fontFamily: 'MaterialIcons'),"color": Colors.green},
+  {"icon": IconData(57955, fontFamily: 'MaterialIcons'),"color": Colors.grey},
+];
 enum importance {VERY_HIGH, HIGH, NORMAL, LOW}
 // UI stuff for the enum type "importance"
 final List<String> importanceText = ['very high','high','normal','low'];
 final List<IconData> importanceIcon = [
-  IconData(58804, fontFamily: 'MaterialIcons'),
-  IconData(61565, fontFamily: 'MaterialIcons'),
-  IconData(61571, fontFamily: 'MaterialIcons'),
-  IconData(61566, fontFamily: 'MaterialIcons'),
+  IconData(59938, fontFamily: 'MaterialIcons'),
+  IconData(58794, fontFamily: 'MaterialIcons'),
+  IconData(59760, fontFamily: 'MaterialIcons'),
+  IconData(58793, fontFamily: 'MaterialIcons'),
 ];
 final List<DropdownMenuItem> importanceList = [
   DropdownMenuItem(
@@ -49,6 +65,7 @@ class Item {
   // bool indivisible;
   List<Session> sessions;
   double weight;
+  scheduled status;
 
   Item({this.id, this.name, this.duration, this.dueDate, this.priority});
 
@@ -57,8 +74,9 @@ class Item {
         name = json['name'] as String,
         duration = json['duration'] as int,
         dueDate = json['dueDate'] as int,
-        priority = importance.values[json['priority']];
-
+        priority = importance.values[json['priority']],
+        status = scheduled.NOTYET;
+        
   Map<String, dynamic> toJson() =>
     {
       'id': id,
@@ -82,27 +100,20 @@ class ItemScheduleProperties {
   double priorityFactor;
   double deadlineFactor;
 }
-// Blocks of available time in the calendar
-class OpenBlock {
-  int startTime;
-  int duration;
-}
 
-List<OpenBlock> getAvailableSlots () {
-  // !!! Code to fake free blocks of time for PoC
-  // !!! 4 hours from 1 PM every day from today for a week
-  List<OpenBlock> _slots = [];
-  DateTime _today = DateTime.now();
-  DateTime _startTime = DateTime(_today.year,_today.month,_today.day,13);
-  for (int _n=0; _n<7; _n++) {
-    _slots.add(new OpenBlock());
-    _slots[_n].startTime = (_startTime.add(Duration(days: _n))).millisecondsSinceEpoch;
-    _slots[_n].duration = ONE_HOUR * 4;
+Future<void> reschedule (bool slotsFromEarliest) async {
+  XCalendar xCalendar;
+  switch (XConfiguration.calendarType) {
+    case "google":
+      xCalendar = GoogleCalendar();
+      break;
+    case "simulated":
+      xCalendar = SimCalendar();
+      break;
+    default:
+      xCalendar = SimCalendar();
+      break;
   }
-  return _slots;
-}
-
-void reschedule (bool slotsFromEarliest) {
   // !!! Arbitrary constant for PoC sets maximum item length
   const int maxItemLength = 4 * ONE_HOUR;
   // Need to know when "now" is
@@ -115,13 +126,15 @@ void reschedule (bool slotsFromEarliest) {
       // !!! Remove items longer than slots - this is a temporary filter for the PoC, will be removed later
       if (xItems[i].duration<=maxItemLength) {
         _sItems.add(xItems[i]);
+      } else {
+        xItems[i].status = scheduled.ERROR;
       }
+    } else {
+      xItems[i].status = scheduled.NOT_SCHEDULED;
     }
   }
   // Additonal data for debugging scheduling (<-> _sItems)
   List<ItemScheduleProperties> _sProps = [];
-  // Blocks of free time avilable to scheduler - sorted earliest to latest
-  List<OpenBlock> _slots = getAvailableSlots();
   // Find latest due date to establish range for scheduling
   int lastDueDate = 0;
   for (int i=0; i<_sItems.length; i++) {
@@ -142,50 +155,64 @@ void reschedule (bool slotsFromEarliest) {
     _sItems[i].weight = _sProps[i].priorityFactor + _sProps[i].deadlineFactor;
   }
   _sItems.sort((x,y) => -(x.weight.compareTo(y.weight)));
- // Schedule items in order
-  // Slots need to be in order
-  if (slotsFromEarliest) {
-    _slots.sort((x,y) => x.startTime.compareTo(y.startTime));
-  } else {
-    _slots.sort((x,y) => -x.startTime.compareTo(y.startTime));
-  }
-  for(int i=0; i<_sItems.length; i++) {
-    _sItems[i].sessions = [];
-    // Get earliest block that fits
-    int _selectedSlot = -1;
-    for (var j=0; j<_slots.length; j++) {
-      if (_slots[j].startTime+_slots[j].duration <= _sItems[i].dueDate) {
-        if (_slots[j].duration >= _sItems[i].duration) {
-          _selectedSlot = j;
-          break;
+  // Blocks of free time avilable to scheduler - sorted earliest to latest
+  DateTime startDate = DateTime.now();
+  print("Requesting slots");
+  await xCalendar.getFreeBlocks(startDate,startDate.add(new Duration(days: 7))).then((_slots) {
+    print("Recevied slots");
+    for (int i=0; i<_slots.length; i++) {
+      print("    "+DateTime.fromMillisecondsSinceEpoch(_slots[i].startTime).toString()+" - "+(_slots[i].duration/60000).toString());
+    }
+    // Slots need to be in order
+    if (slotsFromEarliest) {
+      _slots.sort((x,y) => x.startTime.compareTo(y.startTime));
+    } else {
+      _slots.sort((x,y) => -x.startTime.compareTo(y.startTime));
+    }
+    // Schedule items in order
+    for (int i=0; i<_sItems.length; i++) {
+      _sItems[i].sessions = [];
+      _sItems[i].status = scheduled.NOTYET;
+      // Get earliest block that fits
+      int _selectedSlot = -1;
+      for (int j=0; j<_slots.length; j++) {
+        if (_slots[j].startTime+_slots[j].duration <= _sItems[i].dueDate) {
+          if (_slots[j].duration >= _sItems[i].duration) {
+            _selectedSlot = j;
+            break;
+          }
         }
       }
+      // Leave session list empty (null) if no slot available
+      if (_selectedSlot==-1) {
+        _sItems[i].sessions = null;
+        _sItems[i].status = scheduled.ERROR;
+        break;
+      }
+      // Add session to item
+      _sItems[i].sessions.add(new Session());
+      _sItems[i].status = scheduled.SCHEDULED_OK;
+      // Schedule item, modify block list
+      _sItems[i].sessions[0].duration = _sItems[i].duration;
+      _sItems[i].sessions[0].startTime = _slots[_selectedSlot].startTime;
+      // If the whole slot was used, remove it, otherwise shorten it
+      if (_slots[_selectedSlot].duration==_sItems[i].duration) {
+        _slots.remove(_slots[_selectedSlot]);
+      } else {
+        _slots[_selectedSlot].startTime += _sItems[i].duration;
+        _slots[_selectedSlot].duration -= _sItems[i].duration;
+      }
     }
-    // Add session to item, set session if we found a slot
-    _sItems[i].sessions.add(new Session());
-    if (_selectedSlot==-1) {
-      break;
+    // Move schedule entries to master list of items
+    for (int i=0; i<_sItems.length; i++) {
+      Item target = xItems.firstWhere((element) => 
+            element.id == _sItems[i].id,
+            orElse: () {
+              return null;
+            });
+      if (target != null) {
+        target.sessions =_sItems[i].sessions;
+      }
     }
-    // Schedule item, modify block list
-    _sItems[i].sessions[0].duration = _sItems[i].duration;
-    _sItems[i].sessions[0].startTime = _slots[_selectedSlot].startTime;
-    // If the whole slot was used, remove it, otherwise shorten it
-    if (_slots[_selectedSlot].duration==_sItems[i].duration) {
-      _slots.remove(_slots[_selectedSlot]);
-    } else {
-      _slots[_selectedSlot].startTime += _sItems[i].duration;
-      _slots[_selectedSlot].duration -= _sItems[i].duration;
-    }
-  }
-  // Move schedule entries to master list of items
-  for (int i=0; i<_sItems.length; i++) {
-    Item target = xItems.firstWhere((element) => 
-          element.id == _sItems[i].id,
-          orElse: () {
-            return null;
-          });
-    if (target != null) {
-      target.sessions =_sItems[i].sessions;
-    }
-  }
+  });
 }
