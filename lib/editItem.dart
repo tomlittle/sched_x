@@ -119,6 +119,27 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
                         style: TextStyle(color: Colors.grey[800])),
           onPressed: () async {await _displayPriorityDropdown(context,thisItem); setState(() {});},
           )),
+        // Date picker for earliest start
+        Row(
+          children: [Container(
+          padding: EdgeInsets.zero,
+          child: (thisItem.earliestStart!=null) ?
+                    IconButton(
+                      icon: Icon(IconData(Icons.highlight_remove.codePoint, fontFamily: 'MaterialIcons')),
+                      tooltip: "Remove earliest start contraint",
+                      onPressed: () {thisItem.earliestStart = null; setState(() {});},
+                    ) : null, 
+        ),
+        Container(
+          alignment: Alignment.centerLeft,
+          padding: EdgeInsets.only(left: 10.0),
+          child: TextButton(
+            child: (thisItem.earliestStart!=null) ?
+                    Text("starts on or after "+DateFormat('dd. MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(thisItem.earliestStart)),
+                        style: TextStyle(color: Colors.grey[800])) : 
+                    Text("Set earliest time", style: TextStyle(color: Colors.lightBlue)),
+            onPressed: () async {await _displayEarlieststartPicker(context,thisItem); setState(() {});}, 
+        ))]),
       ],
     );
   }
@@ -177,6 +198,19 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
       lastDate: DateTime(2030));
     if (pickedDate != null) {
       thisItem.dueDate = pickedDate.millisecondsSinceEpoch;
+      _pickerValue = pickedDate.millisecondsSinceEpoch;
+    }
+  }
+
+  Future<void> _displayEarlieststartPicker (BuildContext context, items.Item thisItem) async {
+    int _pickerValue = (thisItem.earliestStart!=null) ? thisItem.earliestStart : DateTime.now().millisecondsSinceEpoch;
+    DateTime pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.fromMillisecondsSinceEpoch(_pickerValue),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2030));
+    if (pickedDate != null) {
+      thisItem.earliestStart = pickedDate.millisecondsSinceEpoch;
       _pickerValue = pickedDate.millisecondsSinceEpoch;
     }
   }

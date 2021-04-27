@@ -23,12 +23,17 @@ class OpenBlock {
 class XConfiguration {
   static String timeZone;
   // Calendar provider
-  static String calendarType;
+  static String calendarType;  // "google" or "simulated"
+  // Scheduling algorithm
+  static String scheduling;  // "soonest" or "latest"
+  // Scheduling algorithm for overdue items
+  static String overdueScheduling;  // "first", "last" or "none"
   // Authorization stuff
   static String user;
-  // Scheduling stuff
+  // Scheduling constraints - should come from calendar but there is no Google API
   static TimeOfDay workdayStart;
   static TimeOfDay workdayEnd;
+  static List<bool> workingDays;
 
   static final XConfiguration _config = XConfiguration.internal();
 
@@ -37,11 +42,14 @@ class XConfiguration {
   }
 
   XConfiguration.internal() {
+    // Assign values - dummy until config by user possible
     timeZone = 'GMT+01:00';
     calendarType = "google";
-    // Assign values - dummy until config by user possible
+    scheduling="soonest";
+    overdueScheduling = "first";
     user = "tom@tomlittle.com";
-    workdayStart = TimeOfDay(hour: 13, minute: 0);
+    workingDays = [true, true, true, true, true, false, false];
+    workdayStart = TimeOfDay(hour: 9, minute: 0);
     workdayEnd   = TimeOfDay(hour: 17, minute: 0);
   }
  

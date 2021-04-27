@@ -198,7 +198,7 @@ class _IssueListPageState extends State<IssueListPage> {
 
   void _schedule() {
     setState(() { isBusy = true; });
-    items.reschedule(false).then((value) => setState(() { isBusy = false; }));
+    items.reschedule().then((value) => setState(() { isBusy = false; }));
   }
 
   return isBusy ? 
@@ -235,9 +235,10 @@ class _IssueListPageState extends State<IssueListPage> {
             ),
         ],
       ),
-      body: Column(
-        children: listWidget,
-      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: listWidget,
+          )),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Compute schedule',
         child: Icon(Icons.quickreply, color: Colors.white),
