@@ -24,7 +24,7 @@ class _EditItemDialogState extends State<EditItemDialog> {
     WidgetsBinding.instance.addPostFrameCallback((_){_showDialog(this.thisItem);});
   }
 
-  _showDialog(thisItem) async{
+  _showDialog(thisItem) async {
     // Assign text controller for name
     final TextEditingController _controller = TextEditingController();
     _controller.text = thisItem.name;

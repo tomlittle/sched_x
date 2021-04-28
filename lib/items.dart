@@ -104,7 +104,7 @@ class ItemScheduleProperties {
 
 Future<void> reschedule () async {
   XCalendar xCalendar;
-  switch (XConfiguration.calendarType) {
+  switch (xConfiguration.calendarType) {
     case "google":
       xCalendar = GoogleCalendar();
       break;
@@ -168,13 +168,13 @@ Future<void> reschedule () async {
       print("    "+DateTime.fromMillisecondsSinceEpoch(_freeSlots[i].startTime).toString()+" - "+(_freeSlots[i].duration/60000).toString());
     }
     // If overdue scheduling is "first", do it
-    if (XConfiguration.overdueScheduling=="first") {
+    if (xConfiguration.overdueScheduling=="first") {
       // Overdue items are always scheduled as early as possible
       _freeSlots.sort((x,y) => x.startTime.compareTo(y.startTime));
       _scheduleItems(_freeSlots,_oItems, durationOnly: true);
     }
     // Slots need to be in specified order
-    if (XConfiguration.scheduling=="soonest") {
+    if (xConfiguration.scheduling=="soonest") {
       _freeSlots.sort((x,y) => x.startTime.compareTo(y.startTime));
     } else {
       _freeSlots.sort((x,y) => -x.startTime.compareTo(y.startTime));
@@ -182,7 +182,7 @@ Future<void> reschedule () async {
     // Schedule items in order
     _scheduleItems(_freeSlots,_sItems);
     // If overdue scheduling is "last", do it
-    if (XConfiguration.overdueScheduling=="last") {
+    if (xConfiguration.overdueScheduling=="last") {
       // Overdue items are always scheduled as early as possible
       _freeSlots.sort((x,y) => x.startTime.compareTo(y.startTime));
       _scheduleItems(_freeSlots,_oItems, durationOnly: true);

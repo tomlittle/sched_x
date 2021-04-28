@@ -11,6 +11,7 @@ import 'dart:typed_data' show Uint8List;
 
 import 'package:sched_x/globals.dart';
 import 'package:sched_x/editItem.dart';
+import 'package:sched_x/editSettings.dart';
 import 'package:sched_x/simulatedCalendar.dart';
 import 'package:sched_x/googleCalendar.dart';
 import 'items.dart' as items;
@@ -33,7 +34,7 @@ class MyApp extends StatelessWidget {
         // Get configuration data
         new XConfiguration();
         // Open calendar
-        switch (XConfiguration.calendarType) {
+        switch (xConfiguration.calendarType) {
           case "google":
             new GoogleCalendar();
             break;
@@ -201,6 +202,12 @@ class _IssueListPageState extends State<IssueListPage> {
     items.reschedule().then((value) => setState(() { isBusy = false; }));
   }
 
+  void _settings() {
+    Navigator.push(context, MaterialPageRoute(builder: (__) => 
+                   SettingsDialog(), maintainState: true, fullscreenDialog: true));
+    setState(() {});
+  }
+
   return isBusy ? 
     AlertDialog(
       content: Column(
@@ -232,6 +239,11 @@ class _IssueListPageState extends State<IssueListPage> {
               icon: Icon( Icons.upload_rounded ),
               tooltip: "Save",
               onPressed: _saveItems,
+            ),
+            IconButton(
+              icon: Icon( Icons.settings),
+              tooltip: "Settings",
+              onPressed: _settings,
             ),
         ],
       ),

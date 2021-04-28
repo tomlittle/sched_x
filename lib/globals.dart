@@ -1,5 +1,10 @@
+import 'dart:convert';
+
+import 'package:firebase_core/firebase_core.dart' as fb;
+import 'package:firebase_storage/firebase_storage.dart' as fb_store;
+import 'dart:convert' show utf8;
+
 // Handy constants
-import 'package:flutter/material.dart';
 
 const int ONE_MINUTE = 60000;
 const int ONE_HOUR = 3600000;
@@ -20,20 +25,22 @@ class OpenBlock {
 }
 
 // Configuration data
+XConfiguration xConfiguration = XConfiguration();
+
 class XConfiguration {
-  static String timeZone;
+  String timeZone;
   // Calendar provider
-  static String calendarType;  // "google" or "simulated"
+  String calendarType;  // "google" or "simulated"
   // Scheduling algorithm
-  static String scheduling;  // "soonest" or "latest"
+  String scheduling;  // "soonest" or "latest"
   // Scheduling algorithm for overdue items
-  static String overdueScheduling;  // "first", "last" or "none"
+  String overdueScheduling;  // "first", "last" or "none"
   // Authorization stuff
-  static String user;
+  String user;
   // Scheduling constraints - should come from calendar but there is no Google API
-  static TimeOfDay workdayStart;
-  static TimeOfDay workdayEnd;
-  static List<bool> workingDays;
+  String workdayStart;
+  String workdayEnd;
+  List<bool> workingDays;
 
   static final XConfiguration _config = XConfiguration.internal();
 
@@ -42,15 +49,51 @@ class XConfiguration {
   }
 
   XConfiguration.internal() {
-    // Assign values - dummy until config by user possible
-    timeZone = 'GMT+01:00';
-    calendarType = "google";
-    scheduling="soonest";
-    overdueScheduling = "first";
-    user = "tom@tomlittle.com";
-    workingDays = [true, true, true, true, true, false, false];
-    workdayStart = TimeOfDay(hour: 9, minute: 0);
-    workdayEnd   = TimeOfDay(hour: 17, minute: 0);
+    fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
+    fb_store.Reference fbStorageRef = fbStorage.ref('test/config.003');
+    try {
+      fbStorageRef.getData(1000000).then((data) {
+        String dataAsString = utf8.decode(data);
+        xConfiguration = XConfiguration.fromJson(json.decode(dataAsString));
+      });
+    } on fb.FirebaseException catch (e) {
+        print(e.toString());
+    }
   }
+
+  // XConfiguration.internal() {
+  //   // Assign values - dummy until config by user possible
+  //   timeZone = 'GMT+01:00';
+  //   calendarType = "google";
+  //   scheduling="soonest";
+  //   overdueScheduling = "first";
+  //   user = "tom@tomlittle.com";
+  //   workingDays = [true, true, true, true, true, false, false];
+  //   workdayStart = "09:00";
+  //   workdayEnd   = "17:00";
+  // }
  
+  XConfiguration.fromJson(Map<String, dynamic> jsonString)
+      : timeZone = jsonString['timeZone'] as String,
+        calendarType = jsonString['calendarType'] as String,
+        scheduling = jsonString['scheduling'] as String,
+        overdueScheduling = jsonString['overdueScheduling'] as String,
+        user = jsonString['user'] as String,
+        workingDays = (jsonString['workingDays'] as List).cast<bool>(),
+        workdayStart = jsonString['workdayStart'] as String,
+        workdayEnd = jsonString['workdayEnd'] as String
+      ;
+        
+  Map<String, dynamic> toJson() =>
+    {
+      'timeZone': timeZone, 
+      'calendarType': calendarType, 
+      'scheduling': scheduling, 
+      'overdueScheduling': overdueScheduling, 
+      'user': user, 
+      'workingDays': workingDays, 
+      'workdayStart': workdayStart, 
+      'workdayEnd': workdayEnd, 
+    };
+
 }
