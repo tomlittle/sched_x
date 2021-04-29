@@ -76,14 +76,17 @@ class GoogleCalendar extends XCalendar {
     await getFreeBusy(startAt,endAt).then((_freeBusyInfo) {
       if (_freeBusyInfo!=null) {
         _freeBusyInfo.calendars.forEach((key, value) {
-          print(key.toString());
-        for (int _n=0; _n<=_nDays; _n++) {
-          _slots.add(new OpenBlock());
-          _slots[_n].startTime = (startAt.add(Duration(days: _n))).millisecondsSinceEpoch;
-          _slots[_n].duration = _dailyDuration;
+          print("Calendar: "+key.toString());
+          int _weekday = startAt.weekday-1;
+          for (int _n=0; _n<=_nDays; _n++, (_weekday=(_weekday+1) % 7)) {
+          if (xConfiguration.workingDays[_weekday]) {
+            _slots.add(new OpenBlock());
+            _slots[_slots.length-1].startTime = (startAt.add(Duration(days: _n))).millisecondsSinceEpoch;
+            _slots[_slots.length-1].duration = _dailyDuration;
+          }
         }
         for (int i=0; i<value.busy.length; i++) {
-          print("    "+value.busy[i].start.toString()+" - "+value.busy[i].end.toString());
+          print("    Busy: "+value.busy[i].start.toString()+" - "+value.busy[i].end.toString());
           // Create a time block (start & duration) from the busy block
           OpenBlock _fbSlot = new OpenBlock();
           DateTime _utcStart = DateFormat("yyyy-MM-dd HH:mm:ssZ").parse(value.busy[i].start.toString(), true);

@@ -204,7 +204,7 @@ class _IssueListPageState extends State<IssueListPage> {
 
   void _settings() {
     Navigator.push(context, MaterialPageRoute(builder: (__) => 
-                   SettingsDialog(), maintainState: true, fullscreenDialog: true));
+                   SettingsDialog(), maintainState: true, fullscreenDialog: false));
     setState(() {});
   }
 

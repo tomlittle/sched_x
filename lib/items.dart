@@ -163,9 +163,9 @@ Future<void> reschedule () async {
   print("Requesting slots");
   await xCalendar.getFreeBlocks(startDate,DateTime.fromMillisecondsSinceEpoch(lastDueDate)).then((_freeSlots) {
 //  await xCalendar.getFreeBlocks(startDate,startDate.add(new Duration(days: 7))).then((_freeSlots) {
-    print("Recevied slots");
+    print("Received slots");
     for (int i=0; i<_freeSlots.length; i++) {
-      print("    "+DateTime.fromMillisecondsSinceEpoch(_freeSlots[i].startTime).toString()+" - "+(_freeSlots[i].duration/60000).toString());
+      print("    "+DateTime.fromMillisecondsSinceEpoch(_freeSlots[i].startTime).toString()+" - "+(_freeSlots[i].duration/60000).toString()+" min");
     }
     // If overdue scheduling is "first", do it
     if (xConfiguration.overdueScheduling=="first") {

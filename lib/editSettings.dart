@@ -10,6 +10,9 @@ import 'dart:typed_data' show Uint8List;
 
 import 'package:sched_x/globals.dart';
 
+
+final List<String> _dayNames = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
 class SettingsDialog extends StatefulWidget {
 
   //SettingsDialog({Key key}) : super(key: key);
@@ -30,6 +33,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   _showDialog() async {
     await showDialog<String>(
+      barrierDismissible: false,
       context: context,
       builder: (BuildContext context) {return AlertDialog(
           titlePadding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 12.0),
@@ -119,7 +123,7 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
             TextButton(
               child: Text(_buildWorkingdayString(),
                           style: TextStyle(color: Colors.grey[800])),
-            onPressed: () async {await _displayWorkingdaysPicker(context); setState(() {});},
+            onPressed: () { _displayWorkingdaysPicker(context); setState(() {});},
             )]),
         // Time pickers for start and end of day
         Row(
@@ -134,11 +138,24 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
                         style: TextStyle(color: Colors.grey[800])),
           onPressed: () async {await _displayWorkingtimePicker(context,false); setState(() {});},
           )]),
+        const Divider(
+            height: 20,
+            thickness: 5,
+            indent: 20,
+            endIndent: 20,
+          ),          
+        Container(
+          alignment: Alignment.centerLeft,
+          padding: EdgeInsets.only(left: 10.0),
+          child: TextButton(
+            child: Text("use "+xConfiguration.calendarType+" calendar",
+                        style: TextStyle(color: Colors.grey[800])),
+          onPressed: () async {await _displayCalendartypeDropdown(context); setState(() {});},
+          ),
+          ),
       ],
     );
   }
-
-  final List<String> _dayNames = ['Mo','Tu','We','Th','Fr','Sa','Su'];
 
   String _buildWorkingdayString () {
     String _wDays = "";
@@ -164,7 +181,7 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
                 onChanged: (value) {
                   setState(() {xConfiguration.scheduling = value;
                   _dropdownValue = value;
-                  Navigator.of(context).pop(); 
+                  Navigator.of(context).maybePop(); 
                   });
               }),
           ]));
@@ -221,24 +238,108 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
   }
 
   Future<void> _displayWorkingdaysPicker (BuildContext context) {
-    List<SwitchListTile> _switches = [];
-    List<bool> _values = xConfiguration.workingDays;
-    for (int i=0; i<7; i++) {
-      SwitchListTile _s = SwitchListTile(title: Text(_dayNames[i]),
-                                         value: _values[i],
-                                         onChanged: (bool value) { _values[i] = value; xConfiguration.workingDays[i] = value; },
-                          );                
-      _switches.add(_s);
-    }
+    Navigator.push(context, MaterialPageRoute(builder: (__) => 
+                   WorkingdaysDialog(), maintainState: true, fullscreenDialog: false))
+                   .then((value) => setState(() {}));
+    return null;
+  }
+
+  Future<void> _displayCalendartypeDropdown (BuildContext context) {
+    String _dropdownValue = xConfiguration.calendarType;
     return showDialog(
         context: context,
         builder: (context) {
           return AlertDialog(
-            title: Text('Working Days'),
+            title: Text('Calendar Type'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
-              children: _switches));
+              children: [DropdownButton(
+                value: _dropdownValue,
+                items: [DropdownMenuItem(child: Text("use Google calendar"), value: "google"),
+                        DropdownMenuItem(child: Text("simulate a calendar"), value: "simulated"),],
+                onChanged: (value) {
+                  setState(() {xConfiguration.calendarType = value;
+                  _dropdownValue = value;
+                  Navigator.of(context).pop(); 
+                  });
+              }),
+          ]));
         });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _getContent();
+  }
+
+}
+
+class WorkingdaysDialog extends StatefulWidget {
+  @override
+  _WorkingdaysDialogState createState() => new _WorkingdaysDialogState();
+}
+
+class _WorkingdaysDialogState extends State<WorkingdaysDialog> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_){_showDialog();});
+  }
+
+   _showDialog() async {
+    await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          titlePadding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 12.0),
+          title: Text("Working Days"),
+          content: SingleChildScrollView(
+            child: Material(
+              child: WorkingdaysDialogContent(),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Ok'),
+                onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+            ),
+          ],
+      );}
+    );}
+
+ @override
+  Widget build(BuildContext context) {
+    return Container();
+  }
+}
+
+class WorkingdaysDialogContent extends StatefulWidget {
+  @override
+  _WorkingdaysDialogContentState createState() => new _WorkingdaysDialogContentState();
+}
+
+class _WorkingdaysDialogContentState extends State<WorkingdaysDialogContent> {
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_){_getContent();});
+  }
+ 
+  _getContent(){
+    List<SwitchListTile> _switches = [];
+    List<bool> _values = xConfiguration.workingDays;
+    for (int i=0; i<7; i++) {
+      SwitchListTile _s = SwitchListTile(title:
+                            Text(_dayNames[i]),
+                            value: _values[i],
+                            onChanged: (bool value) { _values[i] = value; xConfiguration.workingDays[i] = value; 
+                                        setState(() {});},
+                          );
+      _switches.add(_s);
+    }
+   return Column(mainAxisSize: MainAxisSize.min, children: _switches);
   }
 
   @override
