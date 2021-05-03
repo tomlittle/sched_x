@@ -119,6 +119,15 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
                         style: TextStyle(color: Colors.grey[800])),
           onPressed: () async {await _displayPriorityDropdown(context,thisItem); setState(() {});},
           )),
+        // Dropdown for priority
+        Container(
+          alignment: Alignment.centerLeft,
+          padding: EdgeInsets.only(left: 10.0),
+          child: TextButton(
+            child: Text((thisItem.indivisible ? "cannot" : "can")+" be divided into multiple sessions",
+                        style: TextStyle(color: Colors.grey[800])),
+          onPressed: () async {thisItem.indivisible = !thisItem.indivisible; setState(() {});},
+          )),
         // Date picker for earliest start
         Row(
           children: [Container(
@@ -137,7 +146,7 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
             child: (thisItem.earliestStart!=null) ?
                     Text("starts on or after "+DateFormat('dd. MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(thisItem.earliestStart)),
                         style: TextStyle(color: Colors.grey[800])) : 
-                    Text("Set earliest time", style: TextStyle(color: Colors.lightBlue)),
+                    Text("Set earliest starting time", style: TextStyle(color: Colors.lightBlue)),
             onPressed: () async {await _displayEarlieststartPicker(context,thisItem); setState(() {});}, 
         ))]),
       ],

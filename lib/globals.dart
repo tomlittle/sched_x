@@ -35,6 +35,7 @@ class XConfiguration {
   String scheduling;  // "soonest" or "latest"
   // Scheduling algorithm for overdue items
   String overdueScheduling;  // "first", "last" or "none"
+  int minimumSession;  // minimum session length in minutes, -1 for no minimum
   // Authorization stuff
   String user;
   // Scheduling constraints - should come from calendar but there is no Google API
@@ -78,6 +79,7 @@ class XConfiguration {
         calendarType = jsonString['calendarType'] as String,
         scheduling = jsonString['scheduling'] as String,
         overdueScheduling = jsonString['overdueScheduling'] as String,
+        minimumSession = jsonString['minimumSession'] as int,
         user = jsonString['user'] as String,
         workingDays = (jsonString['workingDays'] as List).cast<bool>(),
         workdayStart = jsonString['workdayStart'] as String,
@@ -90,10 +92,18 @@ class XConfiguration {
       'calendarType': calendarType, 
       'scheduling': scheduling, 
       'overdueScheduling': overdueScheduling, 
+      'minimumSession': minimumSession,
       'user': user, 
       'workingDays': workingDays, 
       'workdayStart': workdayStart, 
       'workdayEnd': workdayEnd, 
     };
 
+}
+
+final bool inDebugMode = true;
+void consolePrint (String s) {
+ if (inDebugMode) {
+   print('-> '+s);
+ }
 }

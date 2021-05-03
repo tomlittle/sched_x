@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_spinbox/material.dart'; 
 
 import 'package:firebase_core/firebase_core.dart' as fb;
 import 'package:firebase_storage/firebase_storage.dart' as fb_store;
@@ -64,7 +65,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       fbStorageRef.putData(data);
       setState(() { isBusy = false; });
     } on fb.FirebaseException catch (e) {
-        print(e.toString());
+        consolePrint(e.toString());
     }
   }
 
@@ -106,7 +107,9 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
           alignment: Alignment.centerLeft,
           padding: EdgeInsets.only(left: 10.0),
           child: TextButton(
-            child: Text("schedule overdue items "+xConfiguration.overdueScheduling,
+            child: Text((xConfiguration.overdueScheduling=="none" ? "don't " : "")+
+                        "schedule overdue items "+
+                        (xConfiguration.overdueScheduling!="none" ? xConfiguration.overdueScheduling : ""),
                         style: TextStyle(color: Colors.grey[800])),
           onPressed: () async {await _displayOverdueDropdown(context); setState(() {});},
           )),
@@ -143,6 +146,36 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
             thickness: 5,
             indent: 20,
             endIndent: 20,
+          ),
+          Container(
+          alignment: Alignment.centerLeft,
+          padding: EdgeInsets.only(left: 10.0),
+          child: Row(
+              children: [Container(
+              padding: EdgeInsets.zero,
+              child: (xConfiguration.minimumSession > 0) ?
+                        IconButton(
+                          icon: Icon(IconData(Icons.highlight_remove.codePoint, fontFamily: 'MaterialIcons')),
+                          tooltip: "Remove minimum session length",
+                          onPressed: () {xConfiguration.minimumSession = -1; setState(() {});},
+                        ) : null, 
+            ),
+            Container(
+              alignment: Alignment.centerLeft,
+              padding: EdgeInsets.only(left: 10.0),
+              child: TextButton(
+                child: (xConfiguration.minimumSession > 0) ?
+                        Text("sessions are at least "+xConfiguration.minimumSession.toString()+" minutes long",
+                            style: TextStyle(color: Colors.grey[800])) : 
+                        Text("Set minimum session length", style: TextStyle(color: Colors.lightBlue)),
+                onPressed: () async {await _displaySessionlengthCounter(context); setState(() {});}, 
+            ))]),
+          ),
+        const Divider(
+            height: 20,
+            thickness: 5,
+            indent: 20,
+            endIndent: 20,
           ),          
         Container(
           alignment: Alignment.centerLeft,
@@ -163,6 +196,29 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
       _wDays += xConfiguration.workingDays[i] ? _dayNames[i] : "";
     }
     return _wDays;
+  }
+
+  Future<void> _displaySessionlengthCounter (BuildContext context) async {
+    double _spinnerValue = (xConfiguration.minimumSession<0 ? 30 : xConfiguration.minimumSession) as double;
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Minimum Session Lnegth'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SpinBox(
+                min: 30,
+                max: 1440,
+                step: 30,
+                decimals: 0,
+                value: _spinnerValue,
+                onChanged: (value) => setState((){xConfiguration.minimumSession = value as int; _spinnerValue = value;}),
+              )],
+          ),);
+      },
+    );  
   }
 
   Future<void> _displaySchedulingDropdown (BuildContext context) {
@@ -200,7 +256,8 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
               children: [DropdownButton(
                 value: _dropdownValue,
                 items: [DropdownMenuItem(child: Text("before other items"), value: "first"),
-                        DropdownMenuItem(child: Text("after other items"), value: "last"),],
+                        DropdownMenuItem(child: Text("after other items"), value: "last"),
+                        DropdownMenuItem(child: Text("don't schedule overdue items"), value: "none"),],
                 onChanged: (value) {
                   setState(() {xConfiguration.overdueScheduling = value;
                   _dropdownValue = value;

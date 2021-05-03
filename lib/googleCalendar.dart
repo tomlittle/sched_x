@@ -46,16 +46,16 @@ class GoogleCalendar extends XCalendar {
 
   Future<FreeBusyResponse> getFreeBusy (DateTime startAt, DateTime endAt) async {
     FreeBusyResponse _freeBusyInfo;
-    print("Waiting for calendar");
+    consolePrint("Waiting for calendar");
     await getCalendar().then((_cal) async {
       final request = FreeBusyRequest()
               ..timeMin = startAt.toUtc()
               ..timeMax = endAt.toUtc()
               ..timeZone = xConfiguration.timeZone
               ..items = [ FreeBusyRequestItem()..id=xConfiguration.user];
-      print("Waiting for free/busy");
+      consolePrint("Waiting for free/busy");
       _freeBusyInfo = await _cal.freebusy.query(request);
-      print ("Got free/busy");
+      consolePrint ("Got free/busy");
     });
     return _freeBusyInfo;
   }
@@ -71,12 +71,12 @@ class GoogleCalendar extends XCalendar {
     int _nDays = (endAt.difference(startAt)).inDays+1;
     int _dailyDuration = ((_endHour-_startHour)*60+(_endMinute-_startMinute)) * ONE_MINUTE;
     // Iterate the list of calendars and in each calendar the list of "busy blocks"
-    print("Asking for free/busy");
+    consolePrint("Asking for free/busy");
     List<OpenBlock> _slots = [];
     await getFreeBusy(startAt,endAt).then((_freeBusyInfo) {
       if (_freeBusyInfo!=null) {
         _freeBusyInfo.calendars.forEach((key, value) {
-          print("Calendar: "+key.toString());
+          consolePrint("Calendar: "+key.toString());
           int _weekday = startAt.weekday-1;
           for (int _n=0; _n<=_nDays; _n++, (_weekday=(_weekday+1) % 7)) {
           if (xConfiguration.workingDays[_weekday]) {
@@ -86,7 +86,7 @@ class GoogleCalendar extends XCalendar {
           }
         }
         for (int i=0; i<value.busy.length; i++) {
-          print("    Busy: "+value.busy[i].start.toString()+" - "+value.busy[i].end.toString());
+          consolePrint("    Busy: "+value.busy[i].start.toString()+" - "+value.busy[i].end.toString());
           // Create a time block (start & duration) from the busy block
           OpenBlock _fbSlot = new OpenBlock();
           DateTime _utcStart = DateFormat("yyyy-MM-dd HH:mm:ssZ").parse(value.busy[i].start.toString(), true);
@@ -122,11 +122,11 @@ class GoogleCalendar extends XCalendar {
           }
         }
       });
-      print("Created slots");
+      consolePrint("Created slots");
       return _slots;
     }
     });
-    print("Returning slots");
+    consolePrint("Returning slots");
     return _slots;
   }
 }

@@ -62,12 +62,25 @@ class Item {
   // dueType deadlineType;
   importance priority;
   int earliestStart;
-  // bool indivisible;
+  bool indivisible;
   List<Session> sessions;
   double weight;
   scheduled status;
 
   Item({this.id, this.name, this.duration, this.dueDate, this.priority});
+
+  static Item copy(Item oldItem) {
+    Item i = Item();
+    i.id = DateTime.now().millisecondsSinceEpoch.toString()+'-c';
+    i.name = "COPY - "+oldItem.name;
+    i.duration = oldItem.duration;
+    i.dueDate = oldItem.dueDate;
+    i.priority = oldItem.priority;
+    i.status = oldItem.status;
+    i.earliestStart = oldItem.earliestStart;
+    i.indivisible = oldItem.indivisible;
+    return i;
+}
 
   Item.fromJson(Map<String, dynamic> json)
       : id = json['id'] as String,
@@ -76,6 +89,7 @@ class Item {
         dueDate = json['dueDate'] as int,
         priority = importance.values[json['priority']],
         earliestStart = json['earliestStart'] as int,
+        indivisible = json['indivisible'] as bool,
         status = scheduled.NOTYET;
         
   Map<String, dynamic> toJson() =>
@@ -87,7 +101,7 @@ class Item {
       // 'deadlineType': null,
       'priority': priority.index,
       'earliestStart': earliestStart,
-      // 'indivisible': null,
+      'indivisible': indivisible,
       // 'sessions': null,
     };
 }
@@ -115,8 +129,6 @@ Future<void> reschedule () async {
       xCalendar = SimCalendar();
       break;
   }
-  // !!! Arbitrary constant for PoC sets maximum item length
-  const int maxItemLength = 4 * ONE_HOUR;
   // Need to know when "now" is
   final int today = (DateTime.now()).millisecondsSinceEpoch;
   // List of items to be scheduled - copied and filtered from "xItems"
@@ -126,12 +138,7 @@ Future<void> reschedule () async {
   // Filter items to separate overdue items
   for (int i=0; i<xItems.length; i++) {
     if (xItems[i].dueDate>=today) {
-      // !!! Remove items longer than slots - this is a temporary filter for the PoC, will use divisibility later
-      if (xItems[i].duration<=maxItemLength) {
-        _sItems.add(xItems[i]);
-      } else {
-        xItems[i].status = scheduled.ERROR;
-      }
+      _sItems.add(xItems[i]);
     } else {
       _oItems.add(xItems[i]);
     }
@@ -160,15 +167,16 @@ Future<void> reschedule () async {
   _sItems.sort((x,y) => -(x.weight.compareTo(y.weight)));
   // Blocks of free time avilable to scheduler - sorted earliest to latest
   DateTime startDate = DateTime.now();
-  print("Requesting slots");
+  consolePrint("Requesting slots");
   await xCalendar.getFreeBlocks(startDate,DateTime.fromMillisecondsSinceEpoch(lastDueDate)).then((_freeSlots) {
 //  await xCalendar.getFreeBlocks(startDate,startDate.add(new Duration(days: 7))).then((_freeSlots) {
-    print("Received slots");
+    consolePrint("Received slots");
     for (int i=0; i<_freeSlots.length; i++) {
-      print("    "+DateTime.fromMillisecondsSinceEpoch(_freeSlots[i].startTime).toString()+" - "+(_freeSlots[i].duration/60000).toString()+" min");
+      consolePrint("    "+DateTime.fromMillisecondsSinceEpoch(_freeSlots[i].startTime).toString()+" - "+(_freeSlots[i].duration/60000).toString()+" min");
     }
     // If overdue scheduling is "first", do it
     if (xConfiguration.overdueScheduling=="first") {
+      consolePrint('Doing overdue scheduling first');
       // Overdue items are always scheduled as early as possible
       _freeSlots.sort((x,y) => x.startTime.compareTo(y.startTime));
       _scheduleItems(_freeSlots,_oItems, durationOnly: true);
@@ -180,12 +188,40 @@ Future<void> reschedule () async {
       _freeSlots.sort((x,y) => -x.startTime.compareTo(y.startTime));
     }
     // Schedule items in order
+    consolePrint('Scheduling items');
     _scheduleItems(_freeSlots,_sItems);
     // If overdue scheduling is "last", do it
     if (xConfiguration.overdueScheduling=="last") {
+      consolePrint('Doing overdue scheduling last');
       // Overdue items are always scheduled as early as possible
       _freeSlots.sort((x,y) => x.startTime.compareTo(y.startTime));
       _scheduleItems(_freeSlots,_oItems, durationOnly: true);
+    }
+    // Check for unscheduled items and attempt to schedule them
+    for (int i=0; i<_sItems.length; i++) {
+      if (_sItems[i].status == scheduled.ERROR) {
+        _scheduleConflictedItem(_freeSlots, _sItems[i]);
+      }
+    }
+    for (int i=0; i<_oItems.length; i++) {
+      if (_oItems[i].status == scheduled.ERROR) {
+        _scheduleConflictedItem(_freeSlots, _oItems[i]);
+      }
+    }
+    // Change status of items that will complete after the due date from OK to SCHEDLUED_LATE
+    for (int i=0; i<_sItems.length; i++) {
+      if (_sItems[i].sessions!=null) {
+        if (_sItems[i].sessions[0].startTime+_sItems[i].sessions[0].duration > _sItems[i].dueDate) {
+          _sItems[i].status = scheduled.SCHEDULED_LATE;
+        }
+      }
+    }
+    for (int i=0; i<_oItems.length; i++) {
+      if (_oItems[i].sessions!=null) {
+        if (_oItems[i].sessions[0].startTime+_oItems[i].sessions[0].duration > _oItems[i].dueDate) {
+          _oItems[i].status = scheduled.SCHEDULED_LATE;
+        }
+      }
     }
     // Move schedule entries to master list of items
     for (int i=0; i<_sItems.length; i++) {
@@ -201,8 +237,9 @@ Future<void> reschedule () async {
   });
 }
 
-void _scheduleItems(List<OpenBlock> _slots, List<Item> _items, {durationOnly: false}) {
+  void _scheduleItems(List<OpenBlock> _slots, List<Item> _items, {durationOnly: false}) {
     for (int i=0; i<_items.length; i++) {
+      consolePrint('    Item '+_items[i].name+" due at "+DateTime.fromMillisecondsSinceEpoch(_items[i].dueDate).toString());
       _items[i].sessions = [];
       _items[i].status = scheduled.NOTYET;
       // Get first block that fits
@@ -231,10 +268,12 @@ void _scheduleItems(List<OpenBlock> _slots, List<Item> _items, {durationOnly: fa
       }
       // Leave session list empty (null) if no slot available
       if (_selectedSlot==-1) {
+        consolePrint('    -> no slot found');
         _items[i].sessions = null;
         _items[i].status = scheduled.ERROR;
-        break;
+        continue;
       }
+      consolePrint('    -> slot found at '+DateTime.fromMillisecondsSinceEpoch(_slots[_selectedSlot].startTime).toString());
       // Add session to item
       _items[i].sessions.add(new Session());
       _items[i].status = scheduled.SCHEDULED_OK;
@@ -251,7 +290,7 @@ void _scheduleItems(List<OpenBlock> _slots, List<Item> _items, {durationOnly: fa
         _slots.remove(_slots[_selectedSlot]);
       } else {
           // Remove from the start...
-          if (_slots[_selectedSlot].startTime==_items[i].earliestStart) {
+          if (_slots[_selectedSlot].startTime==_items[i].sessions[0].startTime) {
             _slots[_selectedSlot].startTime += _items[i].duration;
             _slots[_selectedSlot].duration -= _items[i].duration;
           // ...or from the end...
@@ -268,5 +307,49 @@ void _scheduleItems(List<OpenBlock> _slots, List<Item> _items, {durationOnly: fa
                   _slots.insert(_selectedSlot+1,_newSlot);
           }
       }
+     consolePrint("Remaining slots");
+    for (int i=0; i<_slots.length; i++) {
+      consolePrint("    "+DateTime.fromMillisecondsSinceEpoch(_slots[i].startTime).toString()+" - "+(_slots[i].duration/60000).toString()+" min");
     }
+   }
+}
+
+void _scheduleConflictedItem (List<OpenBlock> _slots, Item item) {
+  // Right now we can only try to break an item into multiple sessions which can be scheduled
+  // If that isn't allowed (the "indivisble" property of the item is true), just return
+  if (item.indivisible) {
+    return;
+  } else {
+    // Shortest session per configuration or 30 minutes if not configured
+    int _shortestSession = ((xConfiguration.minimumSession > 0) ? xConfiguration.minimumSession : 30) * ONE_MINUTE;
+    // Use slots starting from earliest
+    _slots.sort((x,y) => x.startTime.compareTo(y.startTime));
+    item.sessions = [];
+    for (int restDuration=item.duration, i=0, sNumber=0; i<_slots.length; i++,sNumber++) {
+      if (_slots[i].duration>=_shortestSession) {
+        if (restDuration<_slots[i].duration) {
+          item.sessions.add(new Session());
+          item.sessions[sNumber].startTime = _slots[i].startTime;
+          item.sessions[sNumber].duration = restDuration;
+          if (_slots[i].duration == restDuration) {
+            _slots.remove(_slots[i]);
+          } else {
+            _slots[i].duration -= restDuration;
+          }
+          restDuration = 0;
+        } else {
+          item.sessions.add(new Session());
+          item.sessions[sNumber].startTime = _slots[i].startTime;
+          item.sessions[sNumber].duration = _slots[i].duration;
+          restDuration -= _slots[i].duration;
+          _slots.remove(_slots[i]);
+        }
+        // If no time remains in the item, we're done
+        if (restDuration == 0) {
+          item.status = scheduled.SCHEDULED_OK;
+          break;
+        }
+      }
+    }
+  }
 }

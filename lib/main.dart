@@ -54,6 +54,7 @@ class MyApp extends StatelessWidget {
             title: appTitle,
             theme: ThemeData(
               primarySwatch: Colors.lightBlue,
+              dividerTheme: DividerThemeData(color: Colors.grey, indent: 6, endIndent: 6)              
             ),
             routes: {
               '/': (context) => IssueListPage(title: 'Schedule X'),
@@ -83,6 +84,31 @@ class _IssueListPageState extends State<IssueListPage> {
   Widget build(BuildContext context) {
     List<Widget> listWidget = [];
 
+  _performItemAction (String action, int index) async {
+    consolePrint('action is $action on '+items.xItems[index].name);
+    switch (action) {
+      case "edit":
+        Navigator.push(context, MaterialPageRoute(builder: (__) => EditItemDialog(thisItem: items.xItems[index]),
+          maintainState: true, fullscreenDialog: true)).then((value) => setState(() {}));
+        break;
+      case "copy":
+        items.Item _x = items.Item.copy(items.xItems[index]);
+        items.xItems.insert(index,_x);
+        setState(() {});
+        break;
+      case "delete":
+        items.xItems.remove(items.xItems[index]);
+        setState(() {});
+        break;
+      case "sort":
+        items.xItems.sort((x,y) => x.dueDate.compareTo(y.dueDate));
+        setState(() {});
+        break;
+      default:
+        break;
+    }
+  }
+
     // Set properties for the ListTiles
     for (var n=0; n<items.xItems.length; n++) {
       // Assign text controller for name
@@ -92,12 +118,17 @@ class _IssueListPageState extends State<IssueListPage> {
       // Translate epoch due date to date string
       String _dueDate = DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].dueDate));
       // Build a subtitle string with schedlued session if it exists
-      String subTitle = 'lasts '+(items.xItems[n].duration/ONE_HOUR).toString()+'h, due on '+_dueDate;
+      String subTitle = 'lasts '+(items.xItems[n].duration/ONE_HOUR).toString()+'h, due on '+_dueDate+'\n';
       if (items.xItems[n].sessions != null) {
-        subTitle += '\nscheduled for '+
-                    DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[0].startTime))+
-                    ' at '+
-                    DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[0].startTime));
+        if (items.xItems[n].sessions.length>1) {
+          subTitle += items.xItems[n].sessions.length.toString()+" sessions, ";
+        }
+        subTitle += 'completed on '+
+                  DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[0].startTime+
+                                                                                        items.xItems[n].sessions[0].duration))+
+                  ' at '+
+                  DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[0].startTime+
+                                                                                        items.xItems[n].sessions[0].duration));
       } else {
         subTitle += '\nNOT SCHEDULED';
       }
@@ -144,7 +175,30 @@ class _IssueListPageState extends State<IssueListPage> {
                         ),
                       ),
                       subtitle: Text(subTitle),
-                      trailing: Icon(Icons.more_vert),
+                      trailing:
+                        PopupMenuButton(
+                          initialValue: "sort",
+                          child: Icon(Icons.more_vert),
+                          itemBuilder: (context) {
+                              var _list = <PopupMenuEntry<Object>>[];
+                              _list.add(PopupMenuItem(
+                                  value: "sort",
+                                  child: Text('Sort')));
+                              _list.add(PopupMenuDivider(height: 10));
+                              _list.add(PopupMenuItem(
+                                  value: "edit",
+                                  child: Text('Edit')));
+                              _list.add(PopupMenuItem(
+                                  value: "copy",
+                                  child: Text('Copy')));
+                              _list.add(PopupMenuDivider(height: 10));
+                              _list.add(PopupMenuItem(
+                                  value: "delete",
+                                  child: Text('Delete')));
+                              return _list;
+                          },
+                          onSelected: (value) { _performItemAction(value,n); },
+                          ),                      
                     )
                   );
       listWidget.add(_temp);
@@ -193,6 +247,7 @@ class _IssueListPageState extends State<IssueListPage> {
     i.dueDate = DateTime(_d.year,_d.month,_d.day,17,0,0).add(const Duration(days: 2)).millisecondsSinceEpoch;
     i.priority = items.importance.NORMAL;
     i.status = items.scheduled.NOTYET;
+    i.indivisible = true;
     items.xItems.add(i);
     setState(() { isBusy = false; });
   }
