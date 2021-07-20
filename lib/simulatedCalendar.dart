@@ -45,4 +45,16 @@ class SimCalendar extends XCalendar {
     return _slots;
   }
 
+  Future<bool> createCalendarEntry (event) {
+    int nSessions = event.sessions.length;
+    for (int i=0; i<nSessions; i++) {
+      consolePrint('Creating '+event.name+' - '+(i+1).toString()+' of '+nSessions.toString());
+    }
+    return Future.value(true);
+  }
+
+  Future removeCalendarEntry (event) async {
+    consolePrint('Removing '+event.name+' from calendar');
+    return true;
+  }
 }

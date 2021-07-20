@@ -8,6 +8,8 @@ import 'package:sched_x/googleCalendar.dart';
 
 // Global variables
 List<Item> xItems = []; // List of items to be scheduled - this list drives EVERYTHING
+bool itemListUnsaved = false;
+bool calendarUnsaved = false;
 
 // Type definitions
 enum scheduled {SCHEDULED_OK, SCHEDULED_LATE, NOT_SCHEDULED, NOTYET, ERROR}
@@ -25,7 +27,13 @@ final List urgencyIcon = [
   {"icon": IconData(Icons.label_outline_rounded.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.green},
   {"icon": IconData(Icons.label_off_outlined.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.grey},
 ];
+
 enum importance {VERY_HIGH, HIGH, NORMAL, LOW}
+extension ImportanceExtension on importance {
+  int compareTo (importance that) {
+    return this.index.compareTo(that.index);
+  }
+}
 // UI stuff for the enum type "importance"
 final List<String> importanceText = ['very high','high','normal','low'];
 final List<IconData> importanceIcon = [
@@ -64,6 +72,7 @@ class Item {
   int earliestStart;
   bool indivisible;
   List<Session> sessions;
+  bool completed = false;
   double weight;
   scheduled status;
 
@@ -76,11 +85,64 @@ class Item {
     i.duration = oldItem.duration;
     i.dueDate = oldItem.dueDate;
     i.priority = oldItem.priority;
-    i.status = oldItem.status;
     i.earliestStart = oldItem.earliestStart;
     i.indivisible = oldItem.indivisible;
+    i.completed = false;
+    i.status = scheduled.NOTYET;
     return i;
-}
+  }
+
+  int totalDuration () {
+    int tD = 0;
+    for (int i=0; i<this.sessions.length; i++) {
+      tD += this.sessions[i].duration;
+    }
+    return tD;
+  }
+
+  Future<void> removeFromCalendar() async {
+    XCalendar xCalendar;
+    switch (xConfiguration.calendarType) {
+      case "google":
+        xCalendar = GoogleCalendar();
+        break;
+      case "simulated":
+        xCalendar = SimCalendar();
+        break;
+      default:
+        xCalendar = SimCalendar();
+        break;
+    }
+    consolePrint('Calling remove entry', category: 'calendar');
+    var x = xCalendar.removeCalendarEntry(this);
+    consolePrint('Returning from remove', category: 'calendar');
+    return x;
+    // await (xCalendar.removeCalendarEntry(this)).then((x)
+    //   { // this.sessions = [];
+    //   //  this.status = scheduled.NOTYET;
+    //   consolePrint('removeFromCalendar exiting', category: 'calendar');
+    //    return true;});
+    // return Future.value(true);
+  }
+
+  Future<void> addToCalendar() async {
+    XCalendar xCalendar;
+    switch (xConfiguration.calendarType) {
+      case "google":
+        xCalendar = GoogleCalendar();
+        break;
+      case "simulated":
+        xCalendar = SimCalendar();
+        break;
+      default:
+        xCalendar = SimCalendar();
+        break;
+    }
+    consolePrint('Calling create', category: 'calendar');
+    var x = xCalendar.createCalendarEntry(this);
+    consolePrint('Returning from add', category: 'calendar');
+    return x;
+  }
 
   Item.fromJson(Map<String, dynamic> json)
       : id = json['id'] as String,
@@ -90,26 +152,91 @@ class Item {
         priority = importance.values[json['priority']],
         earliestStart = json['earliestStart'] as int,
         indivisible = json['indivisible'] as bool,
-        status = scheduled.NOTYET;
+        completed = json['completed'] as bool,
+        status = scheduled.values[json['status']],
+        sessions = decodeSessions(json['sessions']);
         
+  static List<Session> decodeSessions (List<dynamic> jsonList) {
+    List<Session> retVal = [];
+    if (jsonList != null) {
+      for (int i=0; i<jsonList.length; i++) {
+        Session s = Session.fromJson(jsonList[i]);
+        retVal.add(s);
+      }
+    }
+    return retVal;
+  }
+
   Map<String, dynamic> toJson() =>
     {
       'id': id,
       'name': name,
       'duration': duration,
       'dueDate': dueDate,
-      // 'deadlineType': null,
       'priority': priority.index,
       'earliestStart': earliestStart,
+      'status': status.index,
       'indivisible': indivisible,
-      // 'sessions': null,
+      'completed': completed,
+      'sessions': sessions,
     };
 }
-// "Items" are schedlued in one or more "Sessions"
+
+extension ItemList on List {
+  void sortByStart () {
+    List<double> _save = [];
+    // Save existing contents of "weight" and replace with starting date
+    for(int _i=0; _i<xItems.length; _i++) {
+      _save.add(xItems[_i].weight);
+      xItems[_i].weight = (xItems[_i].sessions==null) ? 0 : xItems[_i].sessions[0].startTime;
+    }
+    // Sort
+    xItems.sort((x,y) => x.weight.compareTo(y.weight));
+    // Restore original contents of "weight"
+    for(int _i=0; _i<xItems.length; _i++) {
+      xItems[_i].weight = _save[_i];
+    }
+  }
+
+  void sortByFinish () {
+    List<double> _save = [];
+    // Save existing contents of "weight" and replace with starting date
+    for(int _i=0; _i<xItems.length; _i++) {
+      _save.add(xItems[_i].weight);
+      xItems[_i].weight = (xItems[_i].sessions==null) ? 4102444799000 : // 23.59.59 on 31.12.2099
+        xItems[_i].sessions[xItems[_i].sessions.length-1].startTime+xItems[_i].sessions[xItems[_i].sessions.length-1].duration;
+    }
+    // Sort
+    xItems.sort((x,y) => x.weight.compareTo(y.weight));
+    // Restore original contents of "weight"
+    for(int _i=0; _i<xItems.length; _i++) {
+      xItems[_i].weight = _save[_i];
+    }
+  }
+}
+
+// "Items" are scheduled in one or more "Sessions"
  class Session {
+  String calId;
   int startTime;
   int duration;
+
+  Session();
+
+  Session.fromJson(Map<String, dynamic> json)
+    : calId = json['calId'] as String,
+      startTime = json['startTime'] as int,
+      duration = json['duration'] as int;
+        
+  Map<String, dynamic> toJson() =>
+  {
+    'calId': calId,
+    'startTime': startTime,
+    'duration': duration,
+  };
+
 }
+
 // Helper properties during scheduling (helpful for debugging the algorithm)
 class ItemScheduleProperties {
   double priorityFactor;
@@ -167,19 +294,27 @@ Future<void> reschedule () async {
   _sItems.sort((x,y) => -(x.weight.compareTo(y.weight)));
   // Blocks of free time avilable to scheduler - sorted earliest to latest
   DateTime startDate = DateTime.now();
-  consolePrint("Requesting slots");
-  await xCalendar.getFreeBlocks(startDate,DateTime.fromMillisecondsSinceEpoch(lastDueDate)).then((_freeSlots) {
+  DateTime endDate = (startDate.millisecondsSinceEpoch >= lastDueDate) ? startDate.add(Duration(days: 30)) :
+                      DateTime.fromMillisecondsSinceEpoch(lastDueDate+7*ONE_DAY);
+  consolePrint("Requesting slots",category: 'schedule');
+  await xCalendar.getFreeBlocks(startDate,endDate).then((_freeSlots) {
 //  await xCalendar.getFreeBlocks(startDate,startDate.add(new Duration(days: 7))).then((_freeSlots) {
-    consolePrint("Received slots");
+    consolePrint("Received slots",category: 'schedule');
     for (int i=0; i<_freeSlots.length; i++) {
-      consolePrint("    "+DateTime.fromMillisecondsSinceEpoch(_freeSlots[i].startTime).toString()+" - "+(_freeSlots[i].duration/60000).toString()+" min");
+      consolePrint("    "+DateTime.fromMillisecondsSinceEpoch(_freeSlots[i].startTime).toString()+" - "+(_freeSlots[i].duration/60000).toString()+" min",category:'schedule');
     }
     // If overdue scheduling is "first", do it
     if (xConfiguration.overdueScheduling=="first") {
-      consolePrint('Doing overdue scheduling first');
+      consolePrint('Doing overdue scheduling first',category: 'schedule');
       // Overdue items are always scheduled as early as possible
       _freeSlots.sort((x,y) => x.startTime.compareTo(y.startTime));
       _scheduleItems(_freeSlots,_oItems, durationOnly: true);
+      // Try to resolve conflicts
+      for (int i=0; i<_oItems.length; i++) {
+        if (_oItems[i].status == scheduled.ERROR) {
+          _scheduleConflictedItem(_freeSlots, _oItems[i]);
+        }
+      }
     }
     // Slots need to be in specified order
     if (xConfiguration.scheduling=="soonest") {
@@ -188,14 +323,20 @@ Future<void> reschedule () async {
       _freeSlots.sort((x,y) => -x.startTime.compareTo(y.startTime));
     }
     // Schedule items in order
-    consolePrint('Scheduling items');
+    consolePrint('Scheduling items',category: 'schedule');
     _scheduleItems(_freeSlots,_sItems);
     // If overdue scheduling is "last", do it
     if (xConfiguration.overdueScheduling=="last") {
-      consolePrint('Doing overdue scheduling last');
+      consolePrint('Doing overdue scheduling last',category: 'schedule');
       // Overdue items are always scheduled as early as possible
       _freeSlots.sort((x,y) => x.startTime.compareTo(y.startTime));
       _scheduleItems(_freeSlots,_oItems, durationOnly: true);
+      // Try to resolve conflicts
+      for (int i=0; i<_oItems.length; i++) {
+        if (_oItems[i].status == scheduled.ERROR) {
+          _scheduleConflictedItem(_freeSlots, _oItems[i]);
+        }
+      }
     }
     // Check for unscheduled items and attempt to schedule them
     for (int i=0; i<_sItems.length; i++) {
@@ -203,22 +344,19 @@ Future<void> reschedule () async {
         _scheduleConflictedItem(_freeSlots, _sItems[i]);
       }
     }
-    for (int i=0; i<_oItems.length; i++) {
-      if (_oItems[i].status == scheduled.ERROR) {
-        _scheduleConflictedItem(_freeSlots, _oItems[i]);
-      }
-    }
     // Change status of items that will complete after the due date from OK to SCHEDLUED_LATE
     for (int i=0; i<_sItems.length; i++) {
       if (_sItems[i].sessions!=null) {
-        if (_sItems[i].sessions[0].startTime+_sItems[i].sessions[0].duration > _sItems[i].dueDate) {
+        int j = _sItems[i].sessions.length-1;
+        if (_sItems[i].sessions[j].startTime+_sItems[i].sessions[j].duration > _sItems[i].dueDate) {
           _sItems[i].status = scheduled.SCHEDULED_LATE;
         }
       }
     }
     for (int i=0; i<_oItems.length; i++) {
       if (_oItems[i].sessions!=null) {
-        if (_oItems[i].sessions[0].startTime+_oItems[i].sessions[0].duration > _oItems[i].dueDate) {
+        int j = _oItems[i].sessions.length-1;
+        if (_oItems[i].sessions[j].startTime+_oItems[i].sessions[j].duration > _oItems[i].dueDate) {
           _oItems[i].status = scheduled.SCHEDULED_LATE;
         }
       }
@@ -239,7 +377,7 @@ Future<void> reschedule () async {
 
   void _scheduleItems(List<OpenBlock> _slots, List<Item> _items, {durationOnly: false}) {
     for (int i=0; i<_items.length; i++) {
-      consolePrint('    Item '+_items[i].name+" due at "+DateTime.fromMillisecondsSinceEpoch(_items[i].dueDate).toString());
+      consolePrint('  '+(_items[i].duration/ONE_MINUTE).toString()+'m for "'+_items[i].name+'" due at '+DateTime.fromMillisecondsSinceEpoch(_items[i].dueDate).toString(),category: 'schedule');
       _items[i].sessions = [];
       _items[i].status = scheduled.NOTYET;
       // Get first block that fits
@@ -268,12 +406,12 @@ Future<void> reschedule () async {
       }
       // Leave session list empty (null) if no slot available
       if (_selectedSlot==-1) {
-        consolePrint('    -> no slot found');
+        consolePrint('    -> no slot found',category: 'schedule');
         _items[i].sessions = null;
         _items[i].status = scheduled.ERROR;
         continue;
       }
-      consolePrint('    -> slot found at '+DateTime.fromMillisecondsSinceEpoch(_slots[_selectedSlot].startTime).toString());
+      consolePrint('    -> slot found at '+DateTime.fromMillisecondsSinceEpoch(_slots[_selectedSlot].startTime).toString(),category: 'schedule');
       // Add session to item
       _items[i].sessions.add(new Session());
       _items[i].status = scheduled.SCHEDULED_OK;
@@ -307,9 +445,9 @@ Future<void> reschedule () async {
                   _slots.insert(_selectedSlot+1,_newSlot);
           }
       }
-     consolePrint("Remaining slots");
+    consolePrint("Remaining slots",category: 'schedule');
     for (int i=0; i<_slots.length; i++) {
-      consolePrint("    "+DateTime.fromMillisecondsSinceEpoch(_slots[i].startTime).toString()+" - "+(_slots[i].duration/60000).toString()+" min");
+      consolePrint("    "+DateTime.fromMillisecondsSinceEpoch(_slots[i].startTime).toString()+" - "+(_slots[i].duration/60000).toString()+" min",category: 'schedule');
     }
    }
 }
@@ -320,12 +458,20 @@ void _scheduleConflictedItem (List<OpenBlock> _slots, Item item) {
   if (item.indivisible) {
     return;
   } else {
+    item.status = scheduled.ERROR;
+    consolePrint('    Attempting to resolve conflict',category: 'schedule');
+    consolePrint('  '+(item.duration/ONE_MINUTE).toString()+'m for "'+item.name+'" due at '+DateTime.fromMillisecondsSinceEpoch(item.dueDate).toString(),category: 'schedule');
     // Shortest session per configuration or 30 minutes if not configured
-    int _shortestSession = ((xConfiguration.minimumSession > 0) ? xConfiguration.minimumSession : 30) * ONE_MINUTE;
+    int _shortestSession = (xConfiguration.minimumSession > 0) ? xConfiguration.minimumSession : (30 * ONE_MINUTE);
+    // Save a copy of the slots in case of rollback
+    List<OpenBlock> _savedSlots = [];
+    for (int i =0; i<_slots.length; i++) {
+      _savedSlots.add(_slots[i].copy());
+    }
     // Use slots starting from earliest
     _slots.sort((x,y) => x.startTime.compareTo(y.startTime));
     item.sessions = [];
-    for (int restDuration=item.duration, i=0, sNumber=0; i<_slots.length; i++,sNumber++) {
+    for (int restDuration=item.duration, i=0, sNumber=0; i<_slots.length; i++) {
       if (_slots[i].duration>=_shortestSession) {
         if (restDuration<_slots[i].duration) {
           item.sessions.add(new Session());
@@ -333,6 +479,7 @@ void _scheduleConflictedItem (List<OpenBlock> _slots, Item item) {
           item.sessions[sNumber].duration = restDuration;
           if (_slots[i].duration == restDuration) {
             _slots.remove(_slots[i]);
+            i--;
           } else {
             _slots[i].duration -= restDuration;
           }
@@ -342,14 +489,32 @@ void _scheduleConflictedItem (List<OpenBlock> _slots, Item item) {
           item.sessions[sNumber].startTime = _slots[i].startTime;
           item.sessions[sNumber].duration = _slots[i].duration;
           restDuration -= _slots[i].duration;
+          _slots[i].duration -= restDuration;
           _slots.remove(_slots[i]);
+          i--;
         }
+        sNumber++;
         // If no time remains in the item, we're done
         if (restDuration == 0) {
           item.status = scheduled.SCHEDULED_OK;
+          consolePrint("    -> Resolved, "+item.sessions.length.toString()+" sessions",category:'schedule');
           break;
         }
       }
     }
-  }
+    // Check whether resolution failed - roll back the changes
+    if (item.status == scheduled.ERROR) {
+      _slots = _savedSlots;
+      item.sessions = null;
+      consolePrint("    -> Resolution failed, no slots found",category: 'schedule');
+    } else {
+      for (int i=0; i<item.sessions.length; i++) {
+        consolePrint('    -> slot at '+DateTime.fromMillisecondsSinceEpoch(item.sessions[i].startTime).toString(),category: 'schedule');
+      }
+    }
+    consolePrint("Remaining slots",category: 'schedule');
+    for (int i=0; i<_slots.length; i++) {
+      consolePrint("    "+DateTime.fromMillisecondsSinceEpoch(_slots[i].startTime).toString()+" - "+(_slots[i].duration/60000).toString()+" min",category: 'schedule');
+    }
+ }
 }

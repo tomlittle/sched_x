@@ -32,13 +32,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
     WidgetsBinding.instance.addPostFrameCallback((_){_showDialog();});
   }
 
+  BuildContext dialogContext;
+
   _showDialog() async {
     await showDialog<String>(
       barrierDismissible: false,
       context: context,
-      builder: (BuildContext context) {return AlertDialog(
+      builder: (BuildContext context) {dialogContext = context;
+        return AlertDialog(
           titlePadding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 12.0),
-          title: Text("Settings"),
+          title: Text("Settings for "+xConfiguration.user),
           content: SingleChildScrollView(
             child: Material(
               child: SettingsDialogContent(),
@@ -47,7 +50,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
           actions: <Widget>[
             TextButton(
               child: Text('Ok'),
-              onPressed: () { _saveSettings(); Navigator.popUntil(context, ModalRoute.withName('/'));
+              onPressed: () { _saveSettings(); 
+                              Navigator.of(context).pushNamedAndRemoveUntil('/itemList', (Route<dynamic> route) => false);
               },
             ),
           ],
@@ -60,7 +64,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     List<int> encoded = utf8.encode(text);
     Uint8List data = Uint8List.fromList(encoded);    
     fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
-    fb_store.Reference fbStorageRef = fbStorage.ref('test/config.003');
+    fb_store.Reference fbStorageRef = fbStorage.ref(xConfiguration.fbRootFolder+'/config.json');
     try {
       fbStorageRef.putData(data);
       setState(() { isBusy = false; });
@@ -88,7 +92,12 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
     WidgetsBinding.instance.addPostFrameCallback((_){_getContent();});
   }
 
+  //   Manual dummy in config file
+  //   timeZone = 'GMT+01:00';
+
   _getContent(){
+    // final TextEditingController _controller = TextEditingController();
+    // _controller.text = xConfiguration.user;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,7 +194,24 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
                         style: TextStyle(color: Colors.grey[800])),
           onPressed: () async {await _displayCalendartypeDropdown(context); setState(() {});},
           ),
-          ),
+        ),
+        // Container(
+        //   alignment: Alignment.centerLeft,
+        //   padding: EdgeInsets.only(left: 10.0),
+        //   child: TextField(
+        //                 onChanged: (String value) {xConfiguration.user = _controller.text;
+        //                                            xConfiguration.fbRootFolder = _controller.text;},
+        //                 controller: _controller,
+        //                 style: TextStyle(fontSize: 14.0),
+        //                 decoration: InputDecoration(
+        //                   hintText: "Email",
+        //                   contentPadding: const EdgeInsets.symmetric(vertical: 0.0),
+        //                   border: InputBorder.none,
+        //                   enabledBorder: InputBorder.none,
+        //                   disabledBorder: InputBorder.none,
+        //                 ),
+        //               ),
+        // ),
       ],
     );
   }

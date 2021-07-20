@@ -3,20 +3,20 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_login/flutter_login.dart';
 
 import 'package:firebase_core/firebase_core.dart' as fb;
 import 'package:firebase_storage/firebase_storage.dart' as fb_store;
-import 'dart:convert' show utf8;
 import 'dart:typed_data' show Uint8List;
 
 import 'package:sched_x/globals.dart';
 import 'package:sched_x/editItem.dart';
+import 'package:sched_x/showItemSessions.dart';
 import 'package:sched_x/editSettings.dart';
-import 'package:sched_x/simulatedCalendar.dart';
-import 'package:sched_x/googleCalendar.dart';
+import 'package:sched_x/localAuth.dart';
 import 'items.dart' as items;
 
-const String appTitle = 'Schedule X';
+const String appTitle = 'Scheduler';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,20 +31,6 @@ class MyApp extends StatelessWidget {
     return FutureBuilder(
       future: _fbFApp,
       builder: (context, snapshot) {
-        // Get configuration data
-        new XConfiguration();
-        // Open calendar
-        switch (xConfiguration.calendarType) {
-          case "google":
-            new GoogleCalendar();
-            break;
-          case "simulated":
-            new SimCalendar();
-            break;
-          default:
-            new SimCalendar();
-            break;
-        }
         if (snapshot.hasError) {
           // !!! do something
         }
@@ -53,11 +39,14 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: appTitle,
             theme: ThemeData(
-              primarySwatch: Colors.lightBlue,
+              primarySwatch: Colors.lightGreen,
+              accentColor: Colors.orange,
               dividerTheme: DividerThemeData(color: Colors.grey, indent: 6, endIndent: 6)              
             ),
+            home: LoginPage(),
             routes: {
-              '/': (context) => IssueListPage(title: 'Schedule X'),
+              '/login': (context) => LoginPage(),
+              '/itemList': (context) => IssueListPage(title: 'Scheduler'),
             },
           );
         }
@@ -67,6 +56,25 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
+class LoginPage extends StatelessWidget {
+  Duration get loginTime => Duration(milliseconds: 2250);
+
+  @override
+  Widget build(BuildContext context) {
+    return FlutterLogin(
+      title: 'Scheduler',
+      logo: 'images/BAB_Logo_RZ.png',
+      onLogin: userAuth.authUser,
+      onSignup: userAuth.createUser,
+      onSubmitAnimationCompleted: () {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => IssueListPage(title: 'Scheduler'),
+          ));
+      },
+      onRecoverPassword: userAuth.recoverPassword,
+    );
+  }}
 
 class IssueListPage extends StatefulWidget {
   IssueListPage({Key key, this.title}) : super(key: key);
@@ -87,21 +95,24 @@ class _IssueListPageState extends State<IssueListPage> {
   _performItemAction (String action, int index) async {
     consolePrint('action is $action on '+items.xItems[index].name);
     switch (action) {
+      case 'show':
+        Navigator.push(context, MaterialPageRoute(builder: (__) => ShowSessionsDialog(thisItem: items.xItems[index]),
+          maintainState: true, fullscreenDialog: true)).then((value) => setState(() {}));
+      break;
       case "edit":
         Navigator.push(context, MaterialPageRoute(builder: (__) => EditItemDialog(thisItem: items.xItems[index]),
           maintainState: true, fullscreenDialog: true)).then((value) => setState(() {}));
+        items.itemListUnsaved = true;
         break;
       case "copy":
         items.Item _x = items.Item.copy(items.xItems[index]);
         items.xItems.insert(index,_x);
+        items.itemListUnsaved = true;
         setState(() {});
         break;
       case "delete":
         items.xItems.remove(items.xItems[index]);
-        setState(() {});
-        break;
-      case "sort":
-        items.xItems.sort((x,y) => x.dueDate.compareTo(y.dueDate));
+        items.itemListUnsaved = true;
         setState(() {});
         break;
       default:
@@ -119,16 +130,17 @@ class _IssueListPageState extends State<IssueListPage> {
       String _dueDate = DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].dueDate));
       // Build a subtitle string with schedlued session if it exists
       String subTitle = 'lasts '+(items.xItems[n].duration/ONE_HOUR).toString()+'h, due on '+_dueDate+'\n';
-      if (items.xItems[n].sessions != null) {
-        if (items.xItems[n].sessions.length>1) {
-          subTitle += items.xItems[n].sessions.length.toString()+" sessions, ";
+      if ((items.xItems[n].sessions != null) && (items.xItems[n].sessions.length>0)) {
+        int _nSess = items.xItems[n].sessions.length;
+        if (_nSess>1) {
+          subTitle += _nSess.toString()+" sessions, ";
         }
         subTitle += 'completed on '+
-                  DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[0].startTime+
-                                                                                        items.xItems[n].sessions[0].duration))+
+                  DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[_nSess-1].startTime+
+                                                                                        items.xItems[n].sessions[_nSess-1].duration))+
                   ' at '+
-                  DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[0].startTime+
-                                                                                        items.xItems[n].sessions[0].duration));
+                  DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[_nSess-1].startTime+
+                                                                                        items.xItems[n].sessions[_nSess-1].duration));
       } else {
         subTitle += '\nNOT SCHEDULED';
       }
@@ -158,8 +170,10 @@ class _IssueListPageState extends State<IssueListPage> {
                                                 Icon(items.importanceIcon[items.xItems[n].priority.index]),
                                                 ]),
                             TableRow(children: [Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
-                                                Icon(items.urgencyIcon[1]["icon"],
-                                                     color: items.scheduledIcon[1]["color"]),
+                                                (items.xItems[n].indivisible ? Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent) :
+                                                                               Icon(IconData(59327, fontFamily: 'MaterialIcons')))
+                                                // Icon(items.urgencyIcon[1]["icon"],
+                                                //      color: items.scheduledIcon[1]["color"]),
                                                 ]),
                           ],
                         ),
@@ -177,24 +191,23 @@ class _IssueListPageState extends State<IssueListPage> {
                       subtitle: Text(subTitle),
                       trailing:
                         PopupMenuButton(
-                          initialValue: "sort",
+                          initialValue: "show",
                           child: Icon(Icons.more_vert),
                           itemBuilder: (context) {
                               var _list = <PopupMenuEntry<Object>>[];
                               _list.add(PopupMenuItem(
-                                  value: "sort",
-                                  child: Text('Sort')));
-                              _list.add(PopupMenuDivider(height: 10));
+                                  value: "show",
+                                  child: Text('Show schedule')));
                               _list.add(PopupMenuItem(
                                   value: "edit",
-                                  child: Text('Edit')));
+                                  child: Text('Edit item')));
                               _list.add(PopupMenuItem(
                                   value: "copy",
-                                  child: Text('Copy')));
+                                  child: Text('Copy item')));
                               _list.add(PopupMenuDivider(height: 10));
                               _list.add(PopupMenuItem(
                                   value: "delete",
-                                  child: Text('Delete')));
+                                  child: Text('Delete item')));
                               return _list;
                           },
                           onSelected: (value) { _performItemAction(value,n); },
@@ -207,12 +220,13 @@ class _IssueListPageState extends State<IssueListPage> {
   _loadItems() async {
     setState(() { isBusy = true; });
     fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
-    fb_store.Reference fbStorageRef = fbStorage.ref('test/test.003');
+    fb_store.Reference fbStorageRef = fbStorage.ref(xConfiguration.fbRootFolder+'/items.json');
     try {
       fbStorageRef.getData(1000000).then((data) {
         String dataAsString = utf8.decode(data);
         Iterable i = json.decode(dataAsString);
         items.xItems = List<items.Item>.from(i.map((dataAsString)=> items.Item.fromJson(dataAsString)));
+        items.itemListUnsaved = false;
         setState(() { isBusy = false; });
       });
     } on fb.FirebaseException catch (e) {
@@ -220,47 +234,145 @@ class _IssueListPageState extends State<IssueListPage> {
     }
   }
 
-  _saveItems() {
+  _saveItems() async {
     setState(() { isBusy = true; });
     String text = json.encode(items.xItems);
     List<int> encoded = utf8.encode(text);
     Uint8List data = Uint8List.fromList(encoded);
-    
-    fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
-    fb_store.Reference fbStorageRef = fbStorage.ref('test/test.003');
+        fb_store.FirebaseStorage fbStorage = fb_store.FirebaseStorage.instance;
+    fb_store.Reference fbStorageRef = fbStorage.ref(xConfiguration.fbRootFolder+'/items.json');
     try {
       fbStorageRef.putData(data);
+      items.itemListUnsaved = false;
+      items.calendarUnsaved = true;
       setState(() { isBusy = false; });
     } on fb.FirebaseException catch (e) {
         print(e.toString());
     }
   }
 
-  _createNewItem() {
+  _updateCalendar() async {
+    setState(() { isBusy = true; });
+    await new Future.delayed(const Duration(seconds : 1));
+    List<Future> _removes = [];
+    for (int i=0; i<items.xItems.length; i++) {
+      _removes.add(items.xItems[i].removeFromCalendar());
+    }
+    await Future.wait(_removes).then((removeValue) async {
+      List<Future> _saves = [];
+      for (int i=0; i<items.xItems.length; i++) {
+        items.Item _item = items.xItems[i];
+        if ((_item.status==items.scheduled.SCHEDULED_OK) || (_item.status==items.scheduled.SCHEDULED_LATE)) {
+          _saves.add(_item.addToCalendar());
+        }
+      }
+      await Future.wait(_saves).then((value) {
+        _saveItems();
+        items.calendarUnsaved = false;
+        setState(() { isBusy = false; });
+      });
+    });
+  }
+
+  _createNewItem() async {
     setState(() { isBusy = true; });
     _counter++;
     items.Item i = items.Item();
-    i.id = DateTime.now().millisecondsSinceEpoch.toString()+'-$_counter';
-    i.name = "Item $_counter";
+    i.id = 'bapp'+DateTime.now().microsecondsSinceEpoch.toString();
+    i.name = "New Item $_counter";
     i.duration = _counter * ONE_HOUR;
     DateTime _d = DateTime.now();
     i.dueDate = DateTime(_d.year,_d.month,_d.day,17,0,0).add(const Duration(days: 2)).millisecondsSinceEpoch;
     i.priority = items.importance.NORMAL;
     i.status = items.scheduled.NOTYET;
     i.indivisible = true;
+    i.completed = false;
     items.xItems.add(i);
+    items.itemListUnsaved = true;
     setState(() { isBusy = false; });
   }
 
-  void _schedule() {
+  void _schedule() async {
+    if ((items.xItems==null) || (items.xItems.length==0)) {
+      // !!! Warn user
+      return;
+    }
     setState(() { isBusy = true; });
-    items.reschedule().then((value) => setState(() { isBusy = false; }));
+    await new Future.delayed(const Duration(seconds : 1));
+    List<Future> _removes = [];
+    consolePrint('Create remove requests');
+    for (int i=0; i<items.xItems.length; i++) {
+      _removes.add(items.xItems[i].removeFromCalendar());
+    }
+    await Future.wait(_removes).then((removeValue) async {
+      consolePrint('Remove requests complete, rescheduling');
+      await items.reschedule().then((value) async {
+        consolePrint('Reschedule complete');
+        List<Future> _saves = [];
+        consolePrint('Creating add requests');
+        for (int i=0; i<items.xItems.length; i++) {
+          items.Item _item = items.xItems[i];
+          if ((_item.status==items.scheduled.SCHEDULED_OK) || (_item.status==items.scheduled.SCHEDULED_LATE)) {
+            _saves.add(_item.addToCalendar());
+          }
+        }
+        await Future.wait(_saves).then((value) {
+          consolePrint('Add requests complete, save');
+          consolePrint(value.toString());
+          _saveItems();
+          consolePrint('Save complete');
+          items.calendarUnsaved = false;
+          setState(() { isBusy = false; });
+        });  // _saves
+      });  // reschedule
+    });  // _removes
+    items.itemListUnsaved = true;
   }
 
   void _settings() {
     Navigator.push(context, MaterialPageRoute(builder: (__) => 
                    SettingsDialog(), maintainState: true, fullscreenDialog: false));
     setState(() {});
+  }
+
+  void _sortItems (String action) async {
+    consolePrint('sort field is $action');
+    switch (action) {
+      case 'startdate':
+        items.xItems.sortByStart();
+        setState(() {});
+        break;
+      case 'duedate':
+        items.xItems.sort((x,y) => x.dueDate.compareTo(y.dueDate));
+        setState(() {});
+        break;
+      case 'donedate':
+        items.xItems.sortByFinish();
+        setState(() {});
+        break;
+      case 'name':
+        items.xItems.sort((x,y) => x.name.compareTo(y.name));
+        setState(() {});
+        break;
+      case 'duration':
+        items.xItems.sort((x,y) => x.duration.compareTo(y.duration));
+        setState(() {});
+        break;
+      case 'priority':
+        items.xItems.sort((x,y) => x.priority.compareTo(y.priority));
+        setState(() {});
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _logout () {
+    if (items.itemListUnsaved) {
+      // !!! Warn user
+    }
+    userAuth.deauthUser();
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
   }
 
   return isBusy ? 
@@ -285,6 +397,35 @@ class _IssueListPageState extends State<IssueListPage> {
               tooltip: "New",
               onPressed: _createNewItem,
             ),
+
+
+            PopupMenuButton<String>(
+              icon: Icon( Icons.sort ),
+              tooltip: "Sort",
+              onSelected: _sortItems,
+              itemBuilder: (BuildContext context) {
+                var _list = <PopupMenuEntry<String>>[];
+                  _list.add(PopupMenuItem(
+                      value: "name",
+                      child: Text('Name')));
+                  _list.add(PopupMenuItem(
+                      value: "startdate",
+                      child: Text('Starting time')));
+                  _list.add(PopupMenuItem(
+                      value: "duedate",
+                      child: Text('Deadline')));
+                  _list.add(PopupMenuItem(
+                      value: "donedate",
+                      child: Text('Completion time')));
+                  _list.add(PopupMenuItem(
+                      value: "duration",
+                      child: Text('Duration')));
+                  _list.add(PopupMenuItem(
+                      value: "priority",
+                      child: Text('Priority')));
+                  return _list;
+              },
+            ),
             IconButton(
               icon: Icon( Icons.download_rounded ),
               tooltip: "Load",
@@ -292,13 +433,25 @@ class _IssueListPageState extends State<IssueListPage> {
             ),
             IconButton(
               icon: Icon( Icons.upload_rounded ),
+              color: items.itemListUnsaved ? Colors.red : Colors.black,
               tooltip: "Save",
               onPressed: _saveItems,
+            ),
+            IconButton(
+              icon: Icon( Icons.calendar_today ),
+              color: items.calendarUnsaved ? Colors.red : Colors.black,
+              tooltip: "Update calendar",
+              onPressed: _updateCalendar,
             ),
             IconButton(
               icon: Icon( Icons.settings),
               tooltip: "Settings",
               onPressed: _settings,
+            ),
+            IconButton(
+              icon: Icon( Icons.logout),
+              tooltip: "Logout",
+              onPressed: _logout,
             ),
         ],
       ),
@@ -307,9 +460,10 @@ class _IssueListPageState extends State<IssueListPage> {
           children: listWidget,
           )),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Compute schedule',
+        tooltip: 'Schedule all items',
         child: Icon(Icons.quickreply, color: Colors.white),
-        onPressed: _schedule),
+        onPressed: _schedule,
+        ),
     );
   }
 

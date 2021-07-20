@@ -52,7 +52,7 @@ class _EditItemDialogState extends State<EditItemDialog> {
             TextButton(
               child: Text('Ok'),
               onPressed: () {
-                Navigator.popUntil(context, ModalRoute.withName('/'));
+                  Navigator.of(context).pushNamedAndRemoveUntil('/itemList', (Route<dynamic> route) => false);
               },
             ),
           ],
@@ -199,7 +199,8 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
   }
 
   Future<void> _displayDuedatePicker (BuildContext context, items.Item thisItem) async {
-    int _pickerValue = thisItem.dueDate;
+    int _now = DateTime.now().millisecondsSinceEpoch;
+    int _pickerValue = thisItem.dueDate>_now ? thisItem.dueDate : _now;
     DateTime pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.fromMillisecondsSinceEpoch(_pickerValue),
@@ -212,7 +213,9 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
   }
 
   Future<void> _displayEarlieststartPicker (BuildContext context, items.Item thisItem) async {
-    int _pickerValue = (thisItem.earliestStart!=null) ? thisItem.earliestStart : DateTime.now().millisecondsSinceEpoch;
+    int nowMsec = DateTime.now().millisecondsSinceEpoch;
+    int _pickerValue = ((thisItem.earliestStart==null) || (thisItem.earliestStart<nowMsec))
+                         ?  nowMsec : thisItem.earliestStart;
     DateTime pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.fromMillisecondsSinceEpoch(_pickerValue),
