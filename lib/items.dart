@@ -11,15 +11,17 @@ List<Item> xItems = []; // List of items to be scheduled - this list drives EVER
 bool itemListUnsaved = false;
 bool calendarUnsaved = false;
 
-// Type definitions
+// ------------------------ Type definitions ------------------------
+// ------------------------ Status in schedule
 enum scheduled {SCHEDULED_OK, SCHEDULED_LATE, NOT_SCHEDULED, NOTYET, ERROR}
 final List scheduledIcon = [
-  {"icon": IconData(Icons.check.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.green},
-  {"icon": IconData(Icons.check.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red},
-  {"icon": IconData(Icons.watch_later_outlined .codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red},
-  {"icon": null,"color": null},
-  {"icon": IconData(Icons.dnd_forwardslash.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red},
+  {"icon": IconData(Icons.check.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.green,"tooltip":"will complete on time"},
+  {"icon": IconData(Icons.check.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red,"tooltip":"will be late"},
+  {"icon": IconData(Icons.watch_later_outlined .codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red,"tooltip":"not scheduled"},
+  {"icon": null,"color": null,"tooltip": ''},
+  {"icon": IconData(Icons.dnd_forwardslash.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red,"tooltip":"Error!"},
 ];
+// ------------------------ Urgency (how hard is the due date)
 enum urgency {HIGH, NORMAL, LOW}
 final List<String> urgencyText = ['high','normal','low'];
 final List urgencyIcon = [
@@ -27,14 +29,14 @@ final List urgencyIcon = [
   {"icon": IconData(Icons.label_outline_rounded.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.green},
   {"icon": IconData(Icons.label_off_outlined.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.grey},
 ];
-
+// ------------------------ Importance (priority)
 enum importance {VERY_HIGH, HIGH, NORMAL, LOW}
 extension ImportanceExtension on importance {
   int compareTo (importance that) {
     return this.index.compareTo(that.index);
   }
 }
-// UI stuff for the enum type "importance"
+// UI stuff
 final List<String> importanceText = ['very high','high','normal','low'];
 final List<IconData> importanceIcon = [
   IconData(Icons.star.codePoint, fontFamily: 'MaterialIcons'),
@@ -92,6 +94,22 @@ class Item {
     return i;
   }
 
+  static Item create() {
+    Item i = Item();
+    i.id = 'bapp'+DateTime.now().microsecondsSinceEpoch.toString();
+    i.name = "New Item "+i.id.substring(4,4) ;
+    i.duration = ONE_HOUR;
+    DateTime _d = DateTime.now();
+    int _endHour = int.parse(xConfiguration.workdayEnd.substring(0,2));
+    int _endMinute = int.parse(xConfiguration.workdayEnd.substring(3));
+    i.dueDate = DateTime(_d.year,_d.month,_d.day,_endHour,_endMinute,0).add(const Duration(days: 2)).millisecondsSinceEpoch;
+    i.priority = importance.NORMAL;
+    i.status = scheduled.NOTYET;
+    i.indivisible = true;
+    i.completed = false;
+    return i;
+  }
+
   int totalDuration () {
     int tD = 0;
     for (int i=0; i<this.sessions.length; i++) {
@@ -100,32 +118,11 @@ class Item {
     return tD;
   }
 
-  Future<void> removeFromCalendar() async {
-    XCalendar xCalendar;
-    switch (xConfiguration.calendarType) {
-      case "google":
-        xCalendar = GoogleCalendar();
-        break;
-      case "simulated":
-        xCalendar = SimCalendar();
-        break;
-      default:
-        xCalendar = SimCalendar();
-        break;
-    }
-    consolePrint('Calling remove entry', category: 'calendar');
-    var x = xCalendar.removeCalendarEntry(this);
-    consolePrint('Returning from remove', category: 'calendar');
-    return x;
-    // await (xCalendar.removeCalendarEntry(this)).then((x)
-    //   { // this.sessions = [];
-    //   //  this.status = scheduled.NOTYET;
-    //   consolePrint('removeFromCalendar exiting', category: 'calendar');
-    //    return true;});
-    // return Future.value(true);
-  }
-
   Future<void> addToCalendar() async {
+    if (this.completed) {
+      consolePrint('Skipping create for completed item '+this.name, category: 'calendar');
+      return;
+    }
     XCalendar xCalendar;
     switch (xConfiguration.calendarType) {
       case "google":
@@ -141,6 +138,48 @@ class Item {
     consolePrint('Calling create', category: 'calendar');
     var x = xCalendar.createCalendarEntry(this);
     consolePrint('Returning from add', category: 'calendar');
+    return x;
+  }
+
+  Future<void> removeSessionFromCalendar(int i) async {
+    XCalendar xCalendar;
+    switch (xConfiguration.calendarType) {
+      case "google":
+        xCalendar = GoogleCalendar();
+        break;
+      case "simulated":
+        xCalendar = SimCalendar();
+        break;
+      default:
+        xCalendar = SimCalendar();
+        break;
+    }
+    consolePrint('Calling remove session for session '+i.toString(), category: 'calendar');
+    var x = xCalendar.removeCalendarSession(this,i);
+    consolePrint('Returning from remove session', category: 'calendar');
+    return x;
+  }
+
+  Future<void> removeEntryFromCalendar() async {
+    if (this.completed) {
+      consolePrint('Skipping remove for completed item '+this.name, category: 'calendar');
+      return;
+    }
+    XCalendar xCalendar;
+    switch (xConfiguration.calendarType) {
+      case "google":
+        xCalendar = GoogleCalendar();
+        break;
+      case "simulated":
+        xCalendar = SimCalendar();
+        break;
+      default:
+        xCalendar = SimCalendar();
+        break;
+    }
+    consolePrint('Calling remove entry', category: 'calendar');
+    var x = xCalendar.removeCalendarEntry(this);
+    consolePrint('Returning from remove', category: 'calendar');
     return x;
   }
 
@@ -262,12 +301,14 @@ Future<void> reschedule () async {
   List<Item> _sItems = [];
   // List of overdue items
   List<Item> _oItems = [];
-  // Filter items to separate overdue items
+  // Filter items to separate overdue items and remove completed items
   for (int i=0; i<xItems.length; i++) {
-    if (xItems[i].dueDate>=today) {
-      _sItems.add(xItems[i]);
-    } else {
-      _oItems.add(xItems[i]);
+    if (!xItems[i].completed) {
+      if (xItems[i].dueDate>=today) {
+        _sItems.add(xItems[i]);
+      } else {
+        _oItems.add(xItems[i]);
+      }
     }
   }
   // Additonal data for debugging scheduling (<-> _sItems)

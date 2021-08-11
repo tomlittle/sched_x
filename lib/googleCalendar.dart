@@ -213,16 +213,41 @@ class GoogleCalendar extends XCalendar {
       end.timeZone = start.timeZone;
       entry.end = end;
       // Create calendar entry
-        await _cal.events.insert(entry,xConfiguration.user).then((value) {
-            if (value.status == "confirmed") {
-              consolePrint('Event '+value.description+' added to google calendar', category: 'calendar');
-              event.sessions[i].calId = value.id;
+      await _cal.events.insert(entry,xConfiguration.user).then((value) {
+          if (value.status == "confirmed") {
+            consolePrint('Event '+value.description+' added to google calendar', category: 'calendar');
+            event.sessions[i].calId = value.id;
+            retval = true;
+          } else {
+            consolePrint('Unable to add event '+value.description+' to google calendar', category: 'calendar');
+            retval = false;
+          }      
+        });
+        Future.delayed(Duration(milliseconds: 500));
+      }
+    });
+    return retval;
+  }
+
+  Future<bool> removeCalendarSession(event,i) async {
+    bool retval;
+    await getCalendar().then((_cal) async {
+      if (event.sessions[i].calId!=null) {
+        // Get item by ID
+        // await getCalendar().then((_cal) async {
+        consolePrint("Looking for "+event.sessions[i].calId,category: 'calendar');
+        await _cal.events.get(xConfiguration.user,event.sessions[i].calId).then((entry) {
+          if (entry.status == "confirmed") {
+            consolePrint('Event '+entry.summary+' found in google calendar', category: 'calendar');
+            _cal.events.delete(xConfiguration.user,event.sessions[i].calId).then((retval) {
               retval = true;
-            } else {
-              consolePrint('Unable to add event '+value.description+' to google calendar', category: 'calendar');
-              retval = false;
-            }      
-          });
+              consolePrint('Return from calendar', category: 'calendar');
+            });
+          } else {
+            consolePrint('Event '+entry.summary+' NOT found in google calendar', category: 'calendar');
+            retval = false;
+          }      
+        });
       }
     });
     return retval;
@@ -237,17 +262,18 @@ class GoogleCalendar extends XCalendar {
           // await getCalendar().then((_cal) async {
           consolePrint("Looking for "+event.sessions[i].calId,category: 'calendar');
           await _cal.events.get(xConfiguration.user,event.sessions[i].calId).then((entry) {
-              if (entry.status == "confirmed") {
-                consolePrint('Event '+entry.summary+' found in google calendar', category: 'calendar');
-                _cal.events.delete(xConfiguration.user,event.sessions[i].calId).then((retval) {
-                  retval = true;
-                  consolePrint('Return from calendar', category: 'calendar');
-                });
-              } else {
-                consolePrint('Event '+entry.summary+' NOT found in google calendar', category: 'calendar');
-                retval = false;
-              }      
-            });
+            if (entry.status == "confirmed") {
+              consolePrint('Event '+entry.summary+' found in google calendar', category: 'calendar');
+              _cal.events.delete(xConfiguration.user,event.sessions[i].calId).then((retval) {
+                retval = true;
+                consolePrint('Return from calendar', category: 'calendar');
+              });
+            } else {
+              consolePrint('Event '+entry.summary+' NOT found in google calendar', category: 'calendar');
+              retval = false;
+            }      
+          });
+        Future.delayed(Duration(milliseconds: 500));
         }
       }
     });

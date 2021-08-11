@@ -85,16 +85,39 @@ class IssueListPage extends StatefulWidget {
 
 class _IssueListPageState extends State<IssueListPage> {
   bool isBusy = false;
-  int _counter = 0;
+  bool showComplete = true;
+  bool showIncomplete = true;
   List<TextEditingController> listEditors = [];
 
   @override
   Widget build(BuildContext context) {
     List<Widget> listWidget = [];
 
+  // This routine handles actions started from the item menu (vertical ellipsis)
   _performItemAction (String action, int index) async {
     consolePrint('action is $action on '+items.xItems[index].name);
     switch (action) {
+      case 'finish':
+        setState(() { isBusy = true; });
+        int rightNow = DateTime.now().millisecondsSinceEpoch;
+        for(int i=items.xItems[index].sessions.length-1; i>=0; i--) {
+          if (items.xItems[index].sessions[i].startTime > rightNow) {
+            // Delete session
+            items.xItems[index].removeSessionFromCalendar(i);
+            items.xItems[index].sessions.remove(items.xItems[index].sessions[i]);
+          } else {
+            if (items.xItems[index].sessions[i].startTime+items.xItems[index].sessions[i].duration > rightNow) {
+              // !!! Trim session
+            } else {
+              break;
+            }
+          }
+        }
+        items.xItems[index].completed = true;
+        items.itemListUnsaved = true;
+        items.calendarUnsaved = true;
+        setState(() { isBusy = false; });
+        break;
       case 'show':
         Navigator.push(context, MaterialPageRoute(builder: (__) => ShowSessionsDialog(thisItem: items.xItems[index]),
           maintainState: true, fullscreenDialog: true)).then((value) => setState(() {}));
@@ -103,16 +126,20 @@ class _IssueListPageState extends State<IssueListPage> {
         Navigator.push(context, MaterialPageRoute(builder: (__) => EditItemDialog(thisItem: items.xItems[index]),
           maintainState: true, fullscreenDialog: true)).then((value) => setState(() {}));
         items.itemListUnsaved = true;
+        items.calendarUnsaved = true;
         break;
       case "copy":
         items.Item _x = items.Item.copy(items.xItems[index]);
         items.xItems.insert(index,_x);
         items.itemListUnsaved = true;
+        items.calendarUnsaved = true;
         setState(() {});
         break;
       case "delete":
         items.xItems.remove(items.xItems[index]);
         items.itemListUnsaved = true;
+        // !!! Remove entries from calendar
+        items.calendarUnsaved = true;
         setState(() {});
         break;
       default:
@@ -122,28 +149,37 @@ class _IssueListPageState extends State<IssueListPage> {
 
     // Set properties for the ListTiles
     for (var n=0; n<items.xItems.length; n++) {
+      // Skip this item according to display filter
+      if ((!showComplete && items.xItems[n].completed) || (!showIncomplete && !items.xItems[n].completed)) {
+        continue;
+      }
       // Assign text controller for name
       final TextEditingController _controller = TextEditingController();
       _controller.text = items.xItems[n].name;
       listEditors.add(_controller);
-      // Translate epoch due date to date string
-      String _dueDate = DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].dueDate));
-      // Build a subtitle string with schedlued session if it exists
-      String subTitle = 'lasts '+(items.xItems[n].duration/ONE_HOUR).toString()+'h, due on '+_dueDate+'\n';
-      if ((items.xItems[n].sessions != null) && (items.xItems[n].sessions.length>0)) {
-        int _nSess = items.xItems[n].sessions.length;
-        if (_nSess>1) {
-          subTitle += _nSess.toString()+" sessions, ";
-        }
-        subTitle += 'completed on '+
-                  DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[_nSess-1].startTime+
-                                                                                        items.xItems[n].sessions[_nSess-1].duration))+
-                  ' at '+
-                  DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[_nSess-1].startTime+
-                                                                                        items.xItems[n].sessions[_nSess-1].duration));
+      String subTitle;
+      if (items.xItems[n].completed) {
+        subTitle = 'COMPLETED';
       } else {
-        subTitle += '\nNOT SCHEDULED';
-      }
+        // Translate epoch due date to date string
+        String _dueDate = DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].dueDate));
+        // Build a subtitle string with schedlued session if it exists
+        subTitle = 'lasts '+(items.xItems[n].duration/ONE_HOUR).toString()+'h, due on '+_dueDate+'\n';
+        if ((items.xItems[n].sessions != null) && (items.xItems[n].sessions.length>0)) {
+          int _nSess = items.xItems[n].sessions.length;
+          if (_nSess>1) {
+            subTitle += _nSess.toString()+" sessions, ";
+          }
+          subTitle += 'to be completed on '+
+                    DateFormat('dd MMMM yyyy').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[_nSess-1].startTime+
+                                                                                          items.xItems[n].sessions[_nSess-1].duration))+
+                    ' at '+
+                    DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(items.xItems[n].sessions[_nSess-1].startTime+
+                                                                                          items.xItems[n].sessions[_nSess-1].duration));
+        } else {
+          subTitle += '\nNOT SCHEDULED';
+        }
+    }
       // Build list tile for this entry
       var _temp = Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40,vertical: 4,),
@@ -159,21 +195,33 @@ class _IssueListPageState extends State<IssueListPage> {
                           maxWidth: 44,
                           maxHeight: 44,
                         ),
-                        child: Table(  
+                        child: items.xItems[n].completed ?
+                          // Completed items display only a "finish line" icon
+                          Tooltip(message: "Completed", child: Icon(Icons.sports_score, color: Colors.greenAccent)) :
+                          // Incomplete items display a number of status icons
+                          Table(  
                           defaultVerticalAlignment: TableCellVerticalAlignment.middle,                    
                           children: [
-                            TableRow(children: [Icon(items.scheduledIcon[items.xItems[n].status.index]["icon"],
-                                                     color: items.scheduledIcon[items.xItems[n].status.index]["color"]),
+                            // Row 1: Scheduled status, empty
+                            TableRow(children: [Tooltip(message: items.scheduledIcon[items.xItems[n].status.index]["tooltip"], 
+                                                  child: Icon(items.scheduledIcon[items.xItems[n].status.index]["icon"],
+                                                              color: items.scheduledIcon[items.xItems[n].status.index]["color"])
+                                                ),
                                                 Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
                                                 ]),
+                            // Row 2: empty, importance (priority)
                             TableRow(children: [Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
-                                                Icon(items.importanceIcon[items.xItems[n].priority.index]),
+                                                Tooltip(message: items.importanceText[items.xItems[n].priority.index]+' priority', 
+                                                  child: Icon(items.importanceIcon[items.xItems[n].priority.index]),
+                                                )
                                                 ]),
+                            // Row 3: empty, divisibility
                             TableRow(children: [Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
-                                                (items.xItems[n].indivisible ? Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent) :
-                                                                               Icon(IconData(59327, fontFamily: 'MaterialIcons')))
-                                                // Icon(items.urgencyIcon[1]["icon"],
-                                                //      color: items.scheduledIcon[1]["color"]),
+                                                items.xItems[n].indivisible ? 
+                                                  Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent) :
+                                                  Tooltip(message: 'Multi-session allowed',
+                                                    child: Icon(IconData(59327, fontFamily: 'MaterialIcons'))
+                                                  )
                                                 ]),
                           ],
                         ),
@@ -195,6 +243,10 @@ class _IssueListPageState extends State<IssueListPage> {
                           child: Icon(Icons.more_vert),
                           itemBuilder: (context) {
                               var _list = <PopupMenuEntry<Object>>[];
+                              _list.add(PopupMenuItem(
+                                  value: "finish",
+                                  child: Text('Mark as completed')));
+                              _list.add(PopupMenuDivider(height: 10));
                               _list.add(PopupMenuItem(
                                   value: "show",
                                   child: Text('Show schedule')));
@@ -243,8 +295,6 @@ class _IssueListPageState extends State<IssueListPage> {
     fb_store.Reference fbStorageRef = fbStorage.ref(xConfiguration.fbRootFolder+'/items.json');
     try {
       fbStorageRef.putData(data);
-      items.itemListUnsaved = false;
-      items.calendarUnsaved = true;
       setState(() { isBusy = false; });
     } on fb.FirebaseException catch (e) {
         print(e.toString());
@@ -256,7 +306,7 @@ class _IssueListPageState extends State<IssueListPage> {
     await new Future.delayed(const Duration(seconds : 1));
     List<Future> _removes = [];
     for (int i=0; i<items.xItems.length; i++) {
-      _removes.add(items.xItems[i].removeFromCalendar());
+      _removes.add(items.xItems[i].removeEntryFromCalendar());
     }
     await Future.wait(_removes).then((removeValue) async {
       List<Future> _saves = [];
@@ -268,7 +318,6 @@ class _IssueListPageState extends State<IssueListPage> {
       }
       await Future.wait(_saves).then((value) {
         _saveItems();
-        items.calendarUnsaved = false;
         setState(() { isBusy = false; });
       });
     });
@@ -276,19 +325,8 @@ class _IssueListPageState extends State<IssueListPage> {
 
   _createNewItem() async {
     setState(() { isBusy = true; });
-    _counter++;
-    items.Item i = items.Item();
-    i.id = 'bapp'+DateTime.now().microsecondsSinceEpoch.toString();
-    i.name = "New Item $_counter";
-    i.duration = _counter * ONE_HOUR;
-    DateTime _d = DateTime.now();
-    i.dueDate = DateTime(_d.year,_d.month,_d.day,17,0,0).add(const Duration(days: 2)).millisecondsSinceEpoch;
-    i.priority = items.importance.NORMAL;
-    i.status = items.scheduled.NOTYET;
-    i.indivisible = true;
-    i.completed = false;
+    items.Item i = items.Item.create();
     items.xItems.add(i);
-    items.itemListUnsaved = true;
     setState(() { isBusy = false; });
   }
 
@@ -302,7 +340,7 @@ class _IssueListPageState extends State<IssueListPage> {
     List<Future> _removes = [];
     consolePrint('Create remove requests');
     for (int i=0; i<items.xItems.length; i++) {
-      _removes.add(items.xItems[i].removeFromCalendar());
+      _removes.add(items.xItems[i].removeEntryFromCalendar());
     }
     await Future.wait(_removes).then((removeValue) async {
       consolePrint('Remove requests complete, rescheduling');
@@ -317,16 +355,16 @@ class _IssueListPageState extends State<IssueListPage> {
           }
         }
         await Future.wait(_saves).then((value) {
+          items.calendarUnsaved = false;
           consolePrint('Add requests complete, save');
           consolePrint(value.toString());
           _saveItems();
+          items.itemListUnsaved = false;
           consolePrint('Save complete');
-          items.calendarUnsaved = false;
           setState(() { isBusy = false; });
         });  // _saves
       });  // reschedule
     });  // _removes
-    items.itemListUnsaved = true;
   }
 
   void _settings() {
@@ -335,9 +373,32 @@ class _IssueListPageState extends State<IssueListPage> {
     setState(() {});
   }
 
-  void _sortItems (String action) async {
-    consolePrint('sort field is $action');
+  void _logout () {
+    if ((items.itemListUnsaved) || (items.calendarUnsaved)) {
+      showLogoutAlertDialog(context);
+    } else {
+      userAuth.deauthUser();
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
+    }
+  }
+
+  void _itemsPopupMenu (action) async {
+    consolePrint('Items action is $action');
     switch (action) {
+      case 'new':
+        _createNewItem();
+        items.itemListUnsaved = true;
+        items.calendarUnsaved = true;
+        break;
+      case 'load':
+        _loadItems();
+        items.itemListUnsaved = false;
+        items.calendarUnsaved = false;
+        break;
+      case 'save':
+        _saveItems();
+        items.itemListUnsaved = true;
+        break;
       case 'startdate':
         items.xItems.sortByStart();
         setState(() {});
@@ -367,13 +428,67 @@ class _IssueListPageState extends State<IssueListPage> {
     }
   }
 
-  void _logout () {
-    if (items.itemListUnsaved) {
-      // !!! Warn user
+  void _visibilityPopupMenu (action) async {
+    consolePrint('Calendar action is $action');
+    switch (action) {
+      case 'show_all':
+        showComplete = true;
+        showIncomplete = true;
+        break;
+      case 'show_completed':
+        showComplete = true;
+        showIncomplete = false;
+        break;
+      case 'hide_completed':
+        showComplete = false;
+        showIncomplete = true;
+        break;
+      default:
+        break;
     }
-    userAuth.deauthUser();
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
+    setState(() {});
   }
+
+  void _calendarPopupMenu (action) async {
+    consolePrint('Calendar action is $action');
+    switch (action) {
+      case 'update':
+        _updateCalendar();
+        items.calendarUnsaved = false;
+        break;
+      case 'clean':
+        setState(() { isBusy = true; });
+        await new Future.delayed(const Duration(seconds : 1));
+        List<Future> _removes = [];
+        consolePrint('Create remove requests');
+        for (int i=0; i<items.xItems.length; i++) {
+          _removes.add(items.xItems[i].removeEntryFromCalendar());
+        }
+        await Future.wait(_removes).then((removeValue) async {
+          consolePrint('Remove requests complete');
+        });
+        setState(() { isBusy = false; });
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _profilePopupMenu (action) async {
+    consolePrint('Profile action is $action');
+    switch (action) {
+      case 'settings':
+        _settings();
+        break;
+      case 'logout':
+        _logout();
+        break;
+      default:
+        break;
+    }
+  }
+
+  double menuItemHeight = kMinInteractiveDimension*0.75;
 
   return isBusy ? 
     AlertDialog(
@@ -392,66 +507,115 @@ class _IssueListPageState extends State<IssueListPage> {
         title: Text(appTitle),
         centerTitle: false,
           actions: <Widget>[
-            IconButton(
-              icon: Icon( Icons.add_circle_outline_outlined ),
-              tooltip: "New",
-              onPressed: _createNewItem,
-            ),
-
-
-            PopupMenuButton<String>(
-              icon: Icon( Icons.sort ),
-              tooltip: "Sort",
-              onSelected: _sortItems,
+            // Define app bar with icons and (sub)menus
+            PopupMenuButton(
+              icon: Icon( Icons.category),
+              tooltip: "Items",
+              onSelected: _itemsPopupMenu,
               itemBuilder: (BuildContext context) {
-                var _list = <PopupMenuEntry<String>>[];
-                  _list.add(PopupMenuItem(
-                      value: "name",
-                      child: Text('Name')));
-                  _list.add(PopupMenuItem(
-                      value: "startdate",
-                      child: Text('Starting time')));
-                  _list.add(PopupMenuItem(
-                      value: "duedate",
-                      child: Text('Deadline')));
-                  _list.add(PopupMenuItem(
-                      value: "donedate",
-                      child: Text('Completion time')));
-                  _list.add(PopupMenuItem(
-                      value: "duration",
-                      child: Text('Duration')));
-                  _list.add(PopupMenuItem(
-                      value: "priority",
-                      child: Text('Priority')));
-                  return _list;
-              },
+                var _list = <PopupMenuEntry>[];
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "new",
+                    child: Text('Create new item')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "load",
+                    child: Text('Load items')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "save",
+                    child: Text('Save items')));
+                _list.add(PopupMenuDivider(height: 10));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: null,
+                    textStyle: TextStyle(color: Colors.black, fontSize: 18.0),
+                   child: Row(children: [Icon(Icons.sort), Padding(padding: EdgeInsets.only(right: 20), child: Text('Sort items by...'))])));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "name",
+                    child: Text('...name')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "startdate",
+                    child: Text('...starting time')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "duedate",
+                    child: Text('...deadline')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "donedate",
+                    child: Text('...completion time')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "duration",
+                    child: Text('...duration')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "priority",
+                    child: Text('...priority')));
+                return _list;
+              }
             ),
-            IconButton(
-              icon: Icon( Icons.download_rounded ),
-              tooltip: "Load",
-              onPressed: _loadItems,
+            PopupMenuButton(
+              icon: Icon( Icons.visibility),
+              tooltip: "Filter list view",
+              onSelected: _visibilityPopupMenu,
+              itemBuilder: (BuildContext context) {
+                var _list = <PopupMenuEntry>[];
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "show_all",
+                    child: Text('Show all items'),
+                    textStyle: ((showComplete && showIncomplete) ? TextStyle(fontWeight: FontWeight.bold) : TextStyle(fontWeight: FontWeight.normal))));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "show_completed",
+                    child: Text('Show only completed items'),
+                    textStyle: ((showComplete && !showIncomplete) ? TextStyle(fontWeight: FontWeight.bold) : TextStyle(fontWeight: FontWeight.normal))));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "hide_completed",
+                    child: Text('Show only incomplete items'),
+                    textStyle: ((!showComplete && showIncomplete) ? TextStyle(fontWeight: FontWeight.bold) : TextStyle(fontWeight: FontWeight.normal))));
+                    return _list;
+              }
             ),
-            IconButton(
-              icon: Icon( Icons.upload_rounded ),
-              color: items.itemListUnsaved ? Colors.red : Colors.black,
-              tooltip: "Save",
-              onPressed: _saveItems,
+            PopupMenuButton(
+              icon: Icon( Icons.calendar_today),
+              tooltip: "Calendar",
+              onSelected: _calendarPopupMenu,
+              itemBuilder: (BuildContext context) {
+                var _list = <PopupMenuEntry>[];
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "update",
+                    child: Text('Update calendar')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "clean",
+                    child: Text('Clean calendar')));
+                    return _list;
+              }
             ),
-            IconButton(
-              icon: Icon( Icons.calendar_today ),
-              color: items.calendarUnsaved ? Colors.red : Colors.black,
-              tooltip: "Update calendar",
-              onPressed: _updateCalendar,
-            ),
-            IconButton(
-              icon: Icon( Icons.settings),
-              tooltip: "Settings",
-              onPressed: _settings,
-            ),
-            IconButton(
-              icon: Icon( Icons.logout),
-              tooltip: "Logout",
-              onPressed: _logout,
+            PopupMenuButton(
+              icon: Icon( Icons.account_circle),
+              tooltip: "Profile",
+              onSelected: _profilePopupMenu,
+              itemBuilder: (BuildContext context) {
+                var _list = <PopupMenuEntry>[];
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "settings",
+                    child: Text('Settings')));
+                _list.add(PopupMenuItem(
+                    height: menuItemHeight,
+                    value: "logout",
+                    child: Text('Logout')));
+                    return _list;
+              }
             ),
         ],
       ),
@@ -461,13 +625,42 @@ class _IssueListPageState extends State<IssueListPage> {
           )),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Schedule all items',
-        child: Icon(Icons.quickreply, color: Colors.white),
+        child: Icon(Icons.next_plan, color: Colors.white),
         onPressed: _schedule,
         ),
     );
   }
 
-  @override
+  void showLogoutAlertDialog(BuildContext context) async {
+    Widget cancelButton = TextButton(
+      child: Text("Cancel"),
+      onPressed:  () { Navigator.of(context).pop(); },
+    );
+    Widget continueButton = TextButton(
+      child: Text("Logout"),
+      onPressed:  () { Navigator.of(context).pop();
+                       userAuth.deauthUser();
+                       Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
+                     },
+    );
+    AlertDialog alert = AlertDialog(
+      title: Text("Unsaved changes!"),
+      content: Text("You have unsaved changes to the item list and/or calendar."),
+      actions: [
+        cancelButton,
+        continueButton,
+      ],
+    );
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+}
+
+@override
   void dispose() {
     for (var i=0; i<listEditors.length; i++) {
       listEditors[i].dispose();

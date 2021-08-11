@@ -53,6 +53,11 @@ class SimCalendar extends XCalendar {
     return Future.value(true);
   }
 
+  Future removeCalendarSession (event, index) async {
+    consolePrint('Removing '+event.name+' session'+index.toString()+' from calendar');
+    return true;
+  }
+
   Future removeCalendarEntry (event) async {
     consolePrint('Removing '+event.name+' from calendar');
     return true;

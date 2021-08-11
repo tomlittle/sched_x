@@ -29,7 +29,8 @@ class _ShowSessionsDialogState extends State<ShowSessionsDialog> {
       DateTime _finish = DateTime.fromMillisecondsSinceEpoch(this.thisItem.sessions[i].startTime);
       int _h = (thisItem.sessions[i].duration / ONE_HOUR).truncate();
       int _m = ((thisItem.sessions[i].duration - _h*ONE_HOUR) / ONE_MINUTE).truncate();
-      Text _t = Text(_h.toString()+':'+_m.toString()+' on '+
+      String _mS = '0'+_m.toString();
+      Text _t = Text(_h.toString()+':'+_mS.substring(_mS.length-2)+' on '+
                      DateFormat('dd MMMM yyyy').format(_finish)+' at '+DateFormat('HH:mm').format(_finish));
       sessionsWidget.add(_t);
     }

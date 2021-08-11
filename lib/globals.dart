@@ -42,6 +42,7 @@ abstract class XCalendar {
     bool initialize();
     Future<List<OpenBlock>> getFreeBlocks(DateTime startAt, DateTime endAt);
     Future<bool> createCalendarEntry(items.Item event);
+    Future removeCalendarSession(items.Item event, int index);
     Future removeCalendarEntry(items.Item event);
 }
 
@@ -153,7 +154,7 @@ class XConfiguration {
 
 final bool inDebugMode = true;
 // Categories: slots, freebusy, calendar, schedule
-final List<String> activeCategories = ['calendar'];
+final List<String> activeCategories = [''];
 void consolePrint (String s, {String category}) {
   if (inDebugMode) {
     if ((category==null) || activeCategories.contains(category)) {
