@@ -210,7 +210,10 @@ class _IssueListPageState extends State<IssueListPage> {
                                                 Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
                                                 ]),
                             // Row 2: empty, importance (priority)
-                            TableRow(children: [Icon(IconData(60131, fontFamily: 'MaterialIcons'), color: Colors.transparent),
+                            TableRow(children: [Tooltip(message: items.urgencyIcon[(items.xItems[n].urgent ? 0 :1)]["tooltip"], 
+                                                  child: Icon(items.urgencyIcon[(items.xItems[n].urgent ? 0 : 1)]["icon"],
+                                                              color:items.urgencyIcon[(items.xItems[n].urgent ? 0 : 1)]["color"])
+                                                ),
                                                 Tooltip(message: items.importanceText[items.xItems[n].priority.index]+' priority', 
                                                   child: Icon(items.importanceIcon[items.xItems[n].priority.index]),
                                                 )

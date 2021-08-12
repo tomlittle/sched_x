@@ -22,12 +22,9 @@ final List scheduledIcon = [
   {"icon": IconData(Icons.dnd_forwardslash.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red,"tooltip":"Error!"},
 ];
 // ------------------------ Urgency (how hard is the due date)
-enum urgency {HIGH, NORMAL, LOW}
-final List<String> urgencyText = ['high','normal','low'];
 final List urgencyIcon = [
-  {"icon": IconData(Icons.label_important_rounded.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red},
-  {"icon": IconData(Icons.label_outline_rounded.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.green},
-  {"icon": IconData(Icons.label_off_outlined.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.grey},
+  {"icon": IconData(Icons.label_important_rounded.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.red, "tooltip": 'hard deadline'},
+  {"icon": IconData(Icons.label_off_outlined.codePoint, fontFamily: 'MaterialIcons'),"color": Colors.grey, "tooltip": 'soft deadline'},
 ];
 // ------------------------ Importance (priority)
 enum importance {VERY_HIGH, HIGH, NORMAL, LOW}
@@ -69,8 +66,8 @@ class Item {
   String name;
   int duration;
   int dueDate;
-  // dueType deadlineType;
   importance priority;
+  bool urgent;
   int earliestStart;
   bool indivisible;
   List<Session> sessions;
@@ -87,6 +84,7 @@ class Item {
     i.duration = oldItem.duration;
     i.dueDate = oldItem.dueDate;
     i.priority = oldItem.priority;
+    i.urgent = oldItem.urgent;
     i.earliestStart = oldItem.earliestStart;
     i.indivisible = oldItem.indivisible;
     i.completed = false;
@@ -104,6 +102,7 @@ class Item {
     int _endMinute = int.parse(xConfiguration.workdayEnd.substring(3));
     i.dueDate = DateTime(_d.year,_d.month,_d.day,_endHour,_endMinute,0).add(const Duration(days: 2)).millisecondsSinceEpoch;
     i.priority = importance.NORMAL;
+    i.urgent = false;
     i.status = scheduled.NOTYET;
     i.indivisible = true;
     i.completed = false;
@@ -189,6 +188,7 @@ class Item {
         duration = json['duration'] as int,
         dueDate = json['dueDate'] as int,
         priority = importance.values[json['priority']],
+        urgent = json['urgent'] as bool,
         earliestStart = json['earliestStart'] as int,
         indivisible = json['indivisible'] as bool,
         completed = json['completed'] as bool,
@@ -213,6 +213,7 @@ class Item {
       'duration': duration,
       'dueDate': dueDate,
       'priority': priority.index,
+      'urgent': urgent,
       'earliestStart': earliestStart,
       'status': status.index,
       'indivisible': indivisible,

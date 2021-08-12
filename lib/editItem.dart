@@ -124,6 +124,14 @@ class _EditItemDialogContentState extends State<EditItemDialogContent> {
           alignment: Alignment.centerLeft,
           padding: EdgeInsets.only(left: 10.0),
           child: TextButton(
+            child: Text((thisItem.urgent ? "must be finished on or before the deadline" : "can exceed the deadline if unavoidable"),
+                        style: TextStyle(color: Colors.grey[800])),
+          onPressed: () async {thisItem.urgent = !thisItem.urgent; setState(() {});},
+          )),
+        Container(
+          alignment: Alignment.centerLeft,
+          padding: EdgeInsets.only(left: 10.0),
+          child: TextButton(
             child: Text((thisItem.indivisible ? "cannot" : "can")+" be divided into multiple sessions",
                         style: TextStyle(color: Colors.grey[800])),
           onPressed: () async {thisItem.indivisible = !thisItem.indivisible; setState(() {});},
