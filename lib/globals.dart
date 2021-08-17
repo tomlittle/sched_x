@@ -63,7 +63,8 @@ class OpenBlock {
 XConfiguration xConfiguration;
 
 class XConfiguration {
-  String timeZone;
+  String timeZoneName;  // e.g. Europe/Berlin
+  String timeZone;  // e.g. GMT+01:00
   // Firebase configuration
   String fbRootFolder;
   // Calendar provider
@@ -88,6 +89,7 @@ class XConfiguration {
 
   XConfiguration.newConfigForUser(String userName) {
     XConfiguration _config = XConfiguration();
+    _config.timeZoneName = "Europe/Berlin";
     _config.timeZone = 'GMT+01:00';    
     _config.fbRootFolder = userName;
     _config.calendarType = 'simulated';
@@ -124,7 +126,8 @@ class XConfiguration {
   }
 
   XConfiguration.fromJson(Map<String, dynamic> jsonString)
-      : timeZone = jsonString['timeZone'] as String,
+      : timeZoneName = jsonString['timeZoneName'] as String,
+        timeZone = jsonString['timeZone'] as String,
         fbRootFolder = jsonString['fbRootFolder'] as String,
         calendarType = jsonString['calendarType'] as String,
         scheduling = jsonString['scheduling'] as String,
@@ -138,6 +141,7 @@ class XConfiguration {
         
   Map<String, dynamic> toJson() =>
     {
+      'timeZoneName' : timeZoneName,
       'timeZone': timeZone, 
       'fbRootFolder': fbRootFolder,
       'calendarType': calendarType, 

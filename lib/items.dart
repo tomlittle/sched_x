@@ -298,14 +298,26 @@ Future<void> reschedule () async {
   }
   // Need to know when "now" is
   final int today = (DateTime.now()).millisecondsSinceEpoch;
+  // Find latest due date to establish range for scheduling
+  int lastDueDate = 0;
+  for (int i=0; i<xItems.length; i++) {
+    if ((!xItems[i].completed) && (xItems[i].dueDate>lastDueDate)) {
+      lastDueDate = xItems[i].dueDate;
+    }
+  }
   // List of items to be scheduled - copied and filtered from "xItems"
   List<Item> _sItems = [];
+  // List of urgent items
+  List<Item> _urgentItems = [];
   // List of overdue items
   List<Item> _oItems = [];
-  // Filter items to separate overdue items and remove completed items
+  // Filter items to separate urgent/overdue items and filter out completed items
   for (int i=0; i<xItems.length; i++) {
     if (!xItems[i].completed) {
-      if (xItems[i].dueDate>=today) {
+      if (xItems[i].urgent) {
+        _urgentItems.add(xItems[i]);
+      }
+      else if (xItems[i].dueDate>=today) {
         _sItems.add(xItems[i]);
       } else {
         _oItems.add(xItems[i]);
@@ -314,13 +326,6 @@ Future<void> reschedule () async {
   }
   // Additonal data for debugging scheduling (<-> _sItems)
   List<ItemScheduleProperties> _sProps = [];
-  // Find latest due date to establish range for scheduling
-  int lastDueDate = 0;
-  for (int i=0; i<_sItems.length; i++) {
-    if (_sItems[i].dueDate>lastDueDate) {
-      lastDueDate = _sItems[i].dueDate;
-    }
-  }
   // Calculate size of range based on last due date, scale down
   // We'll use the range for both deadlines and priorities
   const scaleFactor = 1000000;
@@ -340,10 +345,17 @@ Future<void> reschedule () async {
                       DateTime.fromMillisecondsSinceEpoch(lastDueDate+7*ONE_DAY);
   consolePrint("Requesting slots",category: 'schedule');
   await xCalendar.getFreeBlocks(startDate,endDate).then((_freeSlots) {
-//  await xCalendar.getFreeBlocks(startDate,startDate.add(new Duration(days: 7))).then((_freeSlots) {
     consolePrint("Received slots",category: 'schedule');
     for (int i=0; i<_freeSlots.length; i++) {
       consolePrint("    "+DateTime.fromMillisecondsSinceEpoch(_freeSlots[i].startTime).toString()+" - "+(_freeSlots[i].duration/60000).toString()+" min",category:'schedule');
+    }
+    // Urgent items get scheduled first
+    if (_urgentItems.length>0) {
+      consolePrint('Scheduling ${_urgentItems.length} urgent items first',category: 'schedule');
+      // Urgent items are schedlued according to their length, longest first, and as late as possible
+      _freeSlots.sort((x,y) => y.startTime.compareTo(x.startTime));
+      _urgentItems.sort((x,y) => x.duration.compareTo(y.duration));
+      _scheduleItems(_freeSlots,_urgentItems);
     }
     // If overdue scheduling is "first", do it
     if (xConfiguration.overdueScheduling=="first") {
