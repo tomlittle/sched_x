@@ -169,6 +169,16 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
                             onPressed: () async {await _displayTimezoneDropdown(context); setState(() {});},
           )),
         const Divider(height: 20, thickness: 5, indent: 20, endIndent: 20,),
+        Container(
+          alignment: Alignment.centerLeft,
+          padding: EdgeInsets.only(left: 10.0),
+          child: TextButton(child: (xConfiguration.dailyReserve >0) ?
+                                        Text("leave at least "+xConfiguration.dailyReserve.toString()+" minutes free daily",
+                                        style: TextStyle(color: Colors.grey[800])) :
+                                        Text("do not reserve daily free minutes",
+                                        style: TextStyle(color: Colors.grey[800])),
+                            onPressed: () async {await _displayReserveCounter(context); setState(() {});},
+          )),
           Container(
           alignment: Alignment.centerLeft,
           padding: EdgeInsets.only(left: 10.0),
@@ -213,6 +223,30 @@ class _SettingsDialogContentState extends State<SettingsDialogContent> {
     }
     return _wDays;
   }
+
+  Future<void> _displayReserveCounter (BuildContext context) async {
+    double _spinnerValue = xConfiguration.dailyReserve as double;
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Reserved Minutes per Day'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SpinBox(
+                min: 0,
+                max: 1440,
+                step: 15,
+                decimals: 0,
+                value: _spinnerValue,
+                onChanged: (value) => setState((){xConfiguration.dailyReserve = value as int; _spinnerValue = value;}),
+              )],
+          ),);
+      },
+    );  
+  }
+
 
   Future<void> _displaySessionlengthCounter (BuildContext context) async {
     double _spinnerValue = (xConfiguration.minimumSession<0 ? 30 : xConfiguration.minimumSession) as double;

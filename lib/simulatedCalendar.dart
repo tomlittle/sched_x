@@ -1,4 +1,5 @@
 import 'package:sched_x/globals.dart';
+import 'package:sched_x/openBlocks.dart';
 
 class SimCalendar extends XCalendar {
   static final SimCalendar _simCal = SimCalendar.internal();
@@ -20,25 +21,13 @@ class SimCalendar extends XCalendar {
     // Create a list of free blocks, one per day, with start and end set by workday (from config)
     startAt = DateTime(startAt.year,startAt.month,startAt.day,_startHour,_startMinute);
     endAt = DateTime(endAt.year,endAt.month,endAt.day,_endHour,_endMinute);  
-    int _nDays = (endAt.difference(startAt)).inDays+1;
     int _dailyDuration = ((_endHour-_startHour)*60+(_endMinute-_startMinute)) * ONE_MINUTE;
-    // Get the weekday of the start date
-    int _weekday = startAt.weekday-1;
-    List<OpenBlock> _slots = [];
-    for (int _n=0; _n<=_nDays; _n++, (_weekday=(_weekday+1) % 7)) {
-      // Return free blocks only if this is a working day
-      if (xConfiguration.workingDays[_weekday]) {
-        _slots.add(new OpenBlock());
-        _slots[_slots.length-1].startTime = (startAt.add(Duration(days: _n))).millisecondsSinceEpoch;
-        _slots[_slots.length-1].duration = _dailyDuration;
-      }
-    }
+    List<OpenBlock> _slots = OpenBlockList.create(startAt,endAt,_dailyDuration);
     return _slots;
   }
 
   Future<List<OpenBlock>> getFreeBlocks (DateTime startAt, DateTime endAt) async {
     // Code to fake free blocks of time for PoC
-    // 4 hours from 1 PM every day
     startAt = DateTime(startAt.year,startAt.month,startAt.day);
     endAt = DateTime(endAt.year,endAt.month,endAt.day);  
     var _slots = fakeFreeBlocks(startAt,endAt);

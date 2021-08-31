@@ -3,8 +3,9 @@ library sched_x.global;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:sched_x/globals.dart';
-import 'package:sched_x/simulatedCalendar.dart';
-import 'package:sched_x/googleCalendar.dart';
+// import 'package:sched_x/simulatedCalendar.dart';
+// import 'package:sched_x/googleCalendar.dart';
+import 'package:sched_x/openBlocks.dart';
 
 // Global variables
 List<Item> xItems = []; // List of items to be scheduled - this list drives EVERYTHING
@@ -122,18 +123,19 @@ class Item {
       consolePrint('Skipping create for completed item '+this.name, category: 'calendar');
       return;
     }
-    XCalendar xCalendar;
-    switch (xConfiguration.calendarType) {
-      case "google":
-        xCalendar = GoogleCalendar();
-        break;
-      case "simulated":
-        xCalendar = SimCalendar();
-        break;
-      default:
-        xCalendar = SimCalendar();
-        break;
-    }
+    XCalendar xCalendar = XCalendar.getCalendar(xConfiguration.calendarType);
+    // XCalendar xCalendar;
+    // switch (xConfiguration.calendarType) {
+    //   case "google":
+    //     xCalendar = GoogleCalendar();
+    //     break;
+    //   case "simulated":
+    //     xCalendar = SimCalendar();
+    //     break;
+    //   default:
+    //     xCalendar = SimCalendar();
+    //     break;
+    // }
     consolePrint('Calling create', category: 'calendar');
     var x = xCalendar.createCalendarEntry(this);
     consolePrint('Returning from add', category: 'calendar');
@@ -141,18 +143,19 @@ class Item {
   }
 
   Future<void> removeSessionFromCalendar(int i) async {
-    XCalendar xCalendar;
-    switch (xConfiguration.calendarType) {
-      case "google":
-        xCalendar = GoogleCalendar();
-        break;
-      case "simulated":
-        xCalendar = SimCalendar();
-        break;
-      default:
-        xCalendar = SimCalendar();
-        break;
-    }
+  XCalendar xCalendar = XCalendar.getCalendar(xConfiguration.calendarType);
+    // XCalendar xCalendar;
+    // switch (xConfiguration.calendarType) {
+    //   case "google":
+    //     xCalendar = GoogleCalendar();
+    //     break;
+    //   case "simulated":
+    //     xCalendar = SimCalendar();
+    //     break;
+    //   default:
+    //     xCalendar = SimCalendar();
+    //     break;
+    // }
     consolePrint('Calling remove session for session '+i.toString(), category: 'calendar');
     var x = xCalendar.removeCalendarSession(this,i);
     consolePrint('Returning from remove session', category: 'calendar');
@@ -164,18 +167,19 @@ class Item {
       consolePrint('Skipping remove for completed item '+this.name, category: 'calendar');
       return;
     }
-    XCalendar xCalendar;
-    switch (xConfiguration.calendarType) {
-      case "google":
-        xCalendar = GoogleCalendar();
-        break;
-      case "simulated":
-        xCalendar = SimCalendar();
-        break;
-      default:
-        xCalendar = SimCalendar();
-        break;
-    }
+    XCalendar xCalendar = XCalendar.getCalendar(xConfiguration.calendarType);
+    // XCalendar xCalendar;
+    // switch (xConfiguration.calendarType) {
+    //   case "google":
+    //     xCalendar = GoogleCalendar();
+    //     break;
+    //   case "simulated":
+    //     xCalendar = SimCalendar();
+    //     break;
+    //   default:
+    //     xCalendar = SimCalendar();
+    //     break;
+    // }
     consolePrint('Calling remove entry', category: 'calendar');
     var x = xCalendar.removeCalendarEntry(this);
     consolePrint('Returning from remove', category: 'calendar');
@@ -284,18 +288,18 @@ class ItemScheduleProperties {
 }
 
 Future<void> reschedule () async {
-  XCalendar xCalendar;
-  switch (xConfiguration.calendarType) {
-    case "google":
-      xCalendar = GoogleCalendar();
-      break;
-    case "simulated":
-      xCalendar = SimCalendar();
-      break;
-    default:
-      xCalendar = SimCalendar();
-      break;
-  }
+  XCalendar xCalendar = XCalendar.getCalendar(xConfiguration.calendarType);
+  // switch (xConfiguration.calendarType) {
+  //   case "google":
+  //     xCalendar = GoogleCalendar();
+  //     break;
+  //   case "simulated":
+  //     xCalendar = SimCalendar();
+  //     break;
+  //   default:
+  //     xCalendar = SimCalendar();
+  //     break;
+  // }
   // Need to know when "now" is
   final int today = (DateTime.now()).millisecondsSinceEpoch;
   // Find latest due date to establish range for scheduling
@@ -437,7 +441,10 @@ Future<void> reschedule () async {
       // Get first block that fits
       int _selectedSlot = -1;
       for (int j=0; j<_slots.length; j++) {
-        if (_slots[j].duration >= _items[i].duration) {
+        // If the day still has enough free time and the slot is long enough
+        if ((_slots.getFreeTimeForDay(_slots[j].dayID)-xConfiguration.dailyReserve*ONE_MINUTE >= _slots[j].duration) && 
+            (_slots[j].duration >= _items[i].duration)) {
+          // (Optional) check that item will be finished on time
           if (!durationOnly) {
             if (_slots[j].startTime+_slots[j].duration <= _items[i].dueDate) {
               // If the item has an earliest start, check it
@@ -456,7 +463,7 @@ Future<void> reschedule () async {
             _selectedSlot = j;
             break;
           }
-        }  // Duration 
+        }  // Duration & free time
       }
       // Leave session list empty (null) if no slot available
       if (_selectedSlot==-1) {

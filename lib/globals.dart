@@ -7,6 +7,10 @@ import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter_login/flutter_login.dart';
 import 'items.dart' as items;
+import 'package:sched_x/openBlocks.dart';
+
+import 'package:sched_x/googleCalendar.dart';
+import 'package:sched_x/simulatedCalendar.dart';
 
 // Handy constants
 const int ONE_MINUTE = 60000;
@@ -38,25 +42,30 @@ class WorldTime {
   String timeZone;
 }
 
-abstract class XCalendar {
-    bool initialize();
-    Future<List<OpenBlock>> getFreeBlocks(DateTime startAt, DateTime endAt);
-    Future<bool> createCalendarEntry(items.Item event);
-    Future removeCalendarSession(items.Item event, int index);
-    Future removeCalendarEntry(items.Item event);
-}
+class XCalendar {
+  static XCalendar thisCal;
 
-// Blocks of available time in the calendar
-class OpenBlock {
-  int startTime;
-  int duration;
-
-  OpenBlock copy () {
-    OpenBlock _copy = new OpenBlock();
-    _copy.startTime = this.startTime;
-    _copy.duration  = this.duration;
-    return _copy;
+  static XCalendar getCalendar (String type) {
+    if (thisCal==null) {
+      switch (type) {
+        case "google":
+          thisCal = GoogleCalendar();
+          break;
+        case "simulated":
+          thisCal = SimCalendar();
+          break;
+        default:
+          thisCal = SimCalendar();
+          break;
+      }
+    }
+    return thisCal;
   }
+
+  Future<List<OpenBlock>> getFreeBlocks(DateTime startAt, DateTime endAt){return null;}
+  Future<bool> createCalendarEntry(items.Item event){return null;}
+  Future removeCalendarSession(items.Item event, int index){return null;}
+  Future removeCalendarEntry(items.Item event){return null;}
 }
 
 // Configuration data
@@ -73,6 +82,7 @@ class XConfiguration {
   String scheduling;  // "soonest" or "latest"
   // Scheduling algorithm for overdue items
   String overdueScheduling;  // "first", "last" or "none"
+  int dailyReserve;  // number of minutes to leave free each day
   int minimumSession;  // minimum session length in minutes, -1 for no minimum
   // Authorization stuff
   String user;  // Email address
@@ -95,6 +105,7 @@ class XConfiguration {
     _config.calendarType = 'simulated';
     _config.scheduling = 'soonest';
     _config.overdueScheduling = 'first';
+    _config.minimumSession = 0;
     _config.minimumSession = 30;
     _config.user = userName;
     _config.workdayStart = '09:00';
@@ -132,6 +143,7 @@ class XConfiguration {
         calendarType = jsonString['calendarType'] as String,
         scheduling = jsonString['scheduling'] as String,
         overdueScheduling = jsonString['overdueScheduling'] as String,
+        dailyReserve = jsonString['dailyReserve'] as int,
         minimumSession = jsonString['minimumSession'] as int,
         user = jsonString['user'] as String,
         workingDays = (jsonString['workingDays'] as List).cast<bool>(),
@@ -147,6 +159,7 @@ class XConfiguration {
       'calendarType': calendarType, 
       'scheduling': scheduling, 
       'overdueScheduling': overdueScheduling, 
+      'dailyReserve': dailyReserve,
       'minimumSession': minimumSession,
       'user': user, 
       'workingDays': workingDays, 
