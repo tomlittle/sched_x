@@ -124,18 +124,6 @@ class Item {
       return;
     }
     XCalendar xCalendar = XCalendar.getCalendar(xConfiguration.calendarType);
-    // XCalendar xCalendar;
-    // switch (xConfiguration.calendarType) {
-    //   case "google":
-    //     xCalendar = GoogleCalendar();
-    //     break;
-    //   case "simulated":
-    //     xCalendar = SimCalendar();
-    //     break;
-    //   default:
-    //     xCalendar = SimCalendar();
-    //     break;
-    // }
     consolePrint('Calling create', category: 'calendar');
     var x = xCalendar.createCalendarEntry(this);
     consolePrint('Returning from add', category: 'calendar');
@@ -144,18 +132,6 @@ class Item {
 
   Future<void> removeSessionFromCalendar(int i) async {
   XCalendar xCalendar = XCalendar.getCalendar(xConfiguration.calendarType);
-    // XCalendar xCalendar;
-    // switch (xConfiguration.calendarType) {
-    //   case "google":
-    //     xCalendar = GoogleCalendar();
-    //     break;
-    //   case "simulated":
-    //     xCalendar = SimCalendar();
-    //     break;
-    //   default:
-    //     xCalendar = SimCalendar();
-    //     break;
-    // }
     consolePrint('Calling remove session for session '+i.toString(), category: 'calendar');
     var x = xCalendar.removeCalendarSession(this,i);
     consolePrint('Returning from remove session', category: 'calendar');
@@ -168,18 +144,6 @@ class Item {
       return;
     }
     XCalendar xCalendar = XCalendar.getCalendar(xConfiguration.calendarType);
-    // XCalendar xCalendar;
-    // switch (xConfiguration.calendarType) {
-    //   case "google":
-    //     xCalendar = GoogleCalendar();
-    //     break;
-    //   case "simulated":
-    //     xCalendar = SimCalendar();
-    //     break;
-    //   default:
-    //     xCalendar = SimCalendar();
-    //     break;
-    // }
     consolePrint('Calling remove entry', category: 'calendar');
     var x = xCalendar.removeCalendarEntry(this);
     consolePrint('Returning from remove', category: 'calendar');
@@ -289,17 +253,6 @@ class ItemScheduleProperties {
 
 Future<void> reschedule () async {
   XCalendar xCalendar = XCalendar.getCalendar(xConfiguration.calendarType);
-  // switch (xConfiguration.calendarType) {
-  //   case "google":
-  //     xCalendar = GoogleCalendar();
-  //     break;
-  //   case "simulated":
-  //     xCalendar = SimCalendar();
-  //     break;
-  //   default:
-  //     xCalendar = SimCalendar();
-  //     break;
-  // }
   // Need to know when "now" is
   final int today = (DateTime.now()).millisecondsSinceEpoch;
   // Find latest due date to establish range for scheduling
